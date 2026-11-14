@@ -51,27 +51,106 @@ The current plan is to build on a fresh Raspberry Pi OS Lite install and automat
 
 This is an initial scaffold for a fully custom stack. It is designed to give us a repeatable starting point on a fresh Pi while keeping the web layer, admin flow, and future maps integration under our control.
 
-## Fresh Pi Workflow
+## Prepare a Raspberry Pi 4
+
+You need a Raspberry Pi 4, a reliable power supply, an Ethernet connection or Wi-Fi credentials, and a quality microSD card. Use a **128 GB or larger** card for the base system and starter library; choose **256 GB or larger** if you plan to add larger Wikipedia editions, regional maps, or comprehensive ZIM collections.
+
+### 1. Write the operating-system card
+
+1. Install and open [Raspberry Pi Imager](https://www.raspberrypi.com/software/).
+2. Select **Raspberry Pi 4**, then select **Raspberry Pi OS Lite (64-bit)** as the operating system.
+3. Select the intended microSD card as storage. **Writing the image permanently erases all data on that card.** Confirm the selected capacity and name before continuing.
+4. Open the Imager customization settings and set:
+   - A username and strong password
+   - Hostname: `sopr`
+   - Your Wi-Fi network, password, and wireless country (if not using Ethernet)
+   - **Enable SSH** so the Pi can be configured remotely
+5. Write the card, eject it cleanly, insert it into the Pi, connect networking, and power it on.
+
+For the first installation, Ethernet is recommended: the installer downloads system packages and optional offline content.
+
+### 2. Connect to the Pi
+
+Wait a few minutes for the first boot, then from another computer on the same network run:
+
+```bash
+ssh <your-username>@sopr.local
+```
+
+If `sopr.local` does not resolve, find the Pi's address in your router's connected-device list and use `ssh <your-username>@<pi-ip>` instead.
+
+### 3. Update the operating system
+
+Before installing SOPR, update the newly installed operating system and reboot so any kernel or firmware update is active:
+
+```bash
+sudo apt update
+sudo apt full-upgrade -y
+sudo apt install -y git
+sudo reboot
+```
+
+Reconnect with SSH after the Pi has restarted:
+
+```bash
+ssh <your-username>@sopr.local
+```
+
+### 4. Clone and configure SOPR
 
 On the Raspberry Pi:
 
 ```bash
-git clone <this-repo-url> sopr
+git clone https://github.com/A2ThreeD/sopr-offline-knowledge.git sopr
 cd sopr
 cp config/sopr.env.example config/sopr.env
-sudo ./scripts/install_sopr.sh
+nano config/sopr.env
 ```
 
-If you want to only prepare the OS first:
+For a first validation, retain or set these safe starter values:
+
+```ini
+SOPR_HOSTNAME=sopr
+SOPR_ZIM_PROFILE=essential
+SOPR_ZIM_MODE=quick-test
+SOPR_AP_ENABLED=0
+```
+
+`quick-test` selects a small test library. It lets you validate Kiwix and the web interface before committing the card and network connection to the complete content download. Leave wireless access-point mode disabled until the normal LAN installation has been verified.
+
+### 5. Install and verify the base system
 
 ```bash
-sudo ./scripts/bootstrap_pi.sh
+sudo ./scripts/install_sopr.sh
+systemctl status sopr-portal.service --no-pager
+systemctl status sopr-kiwix.service --no-pager
+systemctl status nginx --no-pager
 ```
 
-To fetch the current starter content set:
+Download the selected quick-test library:
 
 ```bash
 sudo ./scripts/download_kiwix_zims.sh
+```
+
+Open `http://sopr.local/` in a browser, or use the Pi's IP address if local-name discovery is unavailable. Complete the first-start setup in the browser.
+
+### 6. Download the full offline library
+
+After the quick-test system is working, edit `config/sopr.env`, change `SOPR_ZIM_MODE` to `full`, select the desired profile and Wikipedia edition, then run:
+
+```bash
+sudo ./scripts/download_kiwix_zims.sh
+```
+
+The ZIM library is stored at `/library/zims/content`. Large libraries can take considerable time and storage; keep the Pi powered and connected to the network until the download finishes.
+
+### OS-only preparation
+
+If you want to install only the required operating-system packages before installing the full SOPR stack:
+
+```bash
+sudo ./scripts/bootstrap_pi.sh
 ```
 
 ## Notes
