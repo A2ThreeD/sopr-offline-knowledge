@@ -738,11 +738,52 @@
       overflow-x: hidden;
     }
 
-    #country-map-list,
+    .map-download-source {
+      margin-top: 0.85rem;
+      padding: 0.7rem 0.85rem;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 0.6rem;
+      min-width: 0;
+    }
+
+    .map-download-source > summary {
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .map-download-source[open] > summary {
+      margin-bottom: 0.75rem;
+    }
+
+    #country-map-list {
+      max-height: min(37rem, 60vh);
+      overflow-y: scroll;
+      overflow-x: hidden;
+      scrollbar-gutter: stable;
+      padding-block: 0.25rem;
+    }
+
+    #country-map-list .zim-entry {
+      min-height: 1.8rem;
+      padding: 0.2rem 0;
+    }
+
+    #country-map-list .zim-entry-body {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.4rem;
+    }
+
+    #country-map-list .zim-entry-desc {
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
     #maps-catalog-list {
       max-height: 21rem;
-      overflow-y: auto;
-      overflow-x: hidden;
+      overflow: auto;
+      scrollbar-gutter: stable;
     }
 
     #content-local-list,
@@ -1563,29 +1604,48 @@
           <div class="status-cluster" id="maps-status" aria-live="polite"></div>
           <p class="substatus" id="maps-status-note">Loading map package status.</p>
         </section>
-        <section class="card" id="country-map-picker">
-          <h2>Available Countries</h2>
+        <section class="card">
+          <h2>Download Maps</h2>
           <div class="field">
             <label for="maps-install-target">Install New Maps To</label>
             <select id="maps-install-target"></select>
           </div>
-          <p class="muted">Install countries from the configured basemap, one at a time. Estimates vary with the source and coverage.</p>
-          <div class="field">
-            <label>Quick-pick bundles</label>
-            <div class="actions" id="country-map-bundles"></div>
-          </div>
-          <p class="status" id="country-map-summary" aria-live="polite">Loading country catalog.</p>
-          <div class="field">
-            <label for="country-map-filter">Filter by country or ISO code</label>
-            <input id="country-map-filter" type="search" placeholder="Canada or CA">
-            <div id="country-map-list" class="log-panel muted"></div>
-          </div>
-          <div class="actions">
-            <button class="button" id="install-country-maps" type="button" disabled>Install Selected</button>
-            <button class="button" id="clear-country-maps" type="button">Clear</button>
-            <a class="button" href="/maps/">Open Map</a>
-          </div>
-          <p class="substatus" id="country-map-note" aria-live="polite"></p>
+          <details class="map-download-source" id="country-map-picker" name="map-download-source" open>
+            <summary>Available Countries</summary>
+            <p class="muted">Install countries from the configured basemap, one at a time. Estimates vary with the source and coverage.</p>
+            <div class="field">
+              <label>Quick-pick bundles</label>
+              <div class="actions" id="country-map-bundles"></div>
+            </div>
+            <p class="status" id="country-map-summary" aria-live="polite">Loading country catalog.</p>
+            <div class="field">
+              <label for="country-map-filter">Filter by country or ISO code</label>
+              <input id="country-map-filter" type="search" placeholder="Canada or CA">
+              <div id="country-map-list" class="log-panel muted" tabindex="0" role="region" aria-label="Available countries"></div>
+            </div>
+            <div class="actions">
+              <button class="button" id="install-country-maps" type="button" disabled>Install Selected</button>
+              <button class="button" id="clear-country-maps" type="button">Clear</button>
+              <a class="button" href="/maps/">Open Map</a>
+            </div>
+            <p class="substatus" id="country-map-note" aria-live="polite"></p>
+          </details>
+          <details class="map-download-source" name="map-download-source">
+            <summary>Prebuilt Regional Packages</summary>
+            <p class="muted">
+              Choose All Regions or the specific regions you want on the Pi. Updating installed maps will download the selected regions and remove unchecked regional map packages.
+            </p>
+            <p class="muted" id="maps-catalog-source">Catalog source: loading</p>
+            <div class="field">
+              <label>Regional Map Downloads</label>
+              <div id="maps-catalog-list" class="log-panel muted">Online catalog is idle. Click Check Online Catalog when you want to query the latest regional map catalog.</div>
+            </div>
+            <div class="actions">
+              <button class="button" data-icon="☑" id="select-all-maps-button" type="button">SELECT ALL</button>
+              <button class="button" data-icon="☁" id="refresh-catalog-button" type="button">Check Online Catalog</button>
+              <button class="button" data-icon="↓" id="sync-maps-button" type="button" disabled>Update Installed Maps</button>
+            </div>
+          </details>
         </section>
         <section class="card">
           <h2>Map Jobs</h2>
@@ -1610,22 +1670,6 @@
           <div class="log-panel hidden" id="maps-log-panel">
             <strong>Map Sync Log</strong>
             <pre id="maps-sync-log">No map sync activity yet.</pre>
-          </div>
-        </section>
-        <section class="card">
-          <h2>Prebuilt Regional Packages</h2>
-          <p class="muted">
-            Choose All Regions or the specific regions you want on the Pi. Updating installed maps will download the selected regions and remove unchecked regional map packages.
-          </p>
-          <p class="muted" id="maps-catalog-source">Catalog source: loading</p>
-          <div class="field">
-            <label>Regional Map Downloads</label>
-            <div id="maps-catalog-list" class="log-panel muted">Online catalog is idle. Click Check Online Catalog when you want to query the latest regional map catalog.</div>
-          </div>
-          <div class="actions">
-            <button class="button" data-icon="☑" id="select-all-maps-button" type="button">SELECT ALL</button>
-            <button class="button" data-icon="☁" id="refresh-catalog-button" type="button">Check Online Catalog</button>
-            <button class="button" data-icon="↓" id="sync-maps-button" type="button" disabled>Update Installed Maps</button>
           </div>
         </section>
       </div>
@@ -4747,7 +4791,10 @@
       return "system";
     }
 
-    document.getElementById("country-map-filter").addEventListener("input", renderCountryMapPicker);
+    document.getElementById("country-map-filter").addEventListener("input", () => {
+      document.getElementById("country-map-list").scrollTop = 0;
+      renderCountryMapPicker();
+    });
     document.getElementById("country-map-list").addEventListener("change", (event) => {
       if (!(event.target instanceof HTMLInputElement)) return;
       if (event.target.checked) selectedCountries.add(event.target.value);
