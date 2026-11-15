@@ -109,14 +109,6 @@ Open [SOPR](http://sopr.local/) or use the Raspberry Pi's IP address. Select **C
 
 The ZIM library is stored at `/library/zims/content`. Large libraries can take considerable time and storage; keep the Pi powered and connected to the network until the download finishes. If a download fails, SOPR reports the failed URL, continues with the remaining content, and continues the installation. Run the download again to retry; incomplete downloads are kept in `.sopr-download-tmp` in the destination directory. SOPR downloads up to three ZIM files at a time by default. Set `SOPR_ZIM_DOWNLOAD_JOBS` to `1`, `2`, or `3` in `config/sopr.env`. Existing ZIM files remain available during a refresh, which downloads a fresh copy before replacing them and therefore requires additional time and free space.
 
-### OS-only preparation
-
-If you want to install only the required operating-system packages before installing the full SOPR stack:
-
-```bash
-sudo ./scripts/bootstrap_pi.sh
-```
-
 ## Notes
 
 - The installer now assumes a custom stack with no IIAB dependency.
