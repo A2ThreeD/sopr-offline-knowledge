@@ -3502,9 +3502,9 @@ class PortalState:
             if process.stdout:
                 for line in process.stdout:
                     log_handle.write(line)
+                    log_handle.flush()
                     lines_since_compaction += 1
                     if lines_since_compaction >= 100:
-                        log_handle.flush()
                         compact_log_file(self.apply_log_file)
                         lines_since_compaction = 0
             return process.wait()
@@ -3520,6 +3520,8 @@ class PortalState:
             "current_file": None,
             "download_current": None,
             "download_total": None,
+            "active_downloads": [],
+            "download_failed": 0,
         }
 
         total_steps = state.get("total_steps") or 0
@@ -3546,17 +3548,22 @@ class PortalState:
         done_pattern = re.compile(r"^PROGRESS_DOWNLOAD_DONE\|(\d+)\|(\d+)\|(.+)$")
         finished_pattern = re.compile(r"^PROGRESS_DOWNLOAD_FINISHED\|(\d+)\|(\d+)\|(.*)$")
         complete_pattern = re.compile(r"^PROGRESS_DOWNLOAD_COMPLETE\|(\d+)$")
+        bytes_pattern = re.compile(r"^PROGRESS_DOWNLOAD_BYTES\|(\d+)\|(.+)$")
+        failed_prefix = "PROGRESS_DOWNLOAD_FAILED|"
 
         download_total = None
         current_file = None
         current_index = None
         last_done_index = None
         parallel_finished = None
+        active_downloads: dict[str, int] = {}
 
         for line in recent_log_text.splitlines():
             total_match = total_pattern.match(line)
             if total_match:
                 download_total = int(total_match.group(1))
+                active_downloads.clear()
+                progress["download_failed"] = 0
                 continue
 
             file_match = file_pattern.match(line)
@@ -3564,6 +3571,16 @@ class PortalState:
                 current_index = int(file_match.group(1))
                 download_total = int(file_match.group(2))
                 current_file = file_match.group(3)
+                active_downloads[current_file] = 0
+                continue
+
+            bytes_match = bytes_pattern.match(line)
+            if bytes_match:
+                active_downloads[bytes_match.group(2)] = int(bytes_match.group(1))
+                continue
+
+            if line.startswith(failed_prefix):
+                progress["download_failed"] += 1
                 continue
 
             done_match = done_pattern.match(line)
@@ -3571,6 +3588,7 @@ class PortalState:
                 last_done_index = int(done_match.group(1))
                 download_total = int(done_match.group(2))
                 current_file = done_match.group(3)
+                active_downloads.pop(current_file, None)
                 continue
 
             finished_match = finished_pattern.match(line)
@@ -3578,6 +3596,7 @@ class PortalState:
                 parallel_finished = int(finished_match.group(1))
                 download_total = int(finished_match.group(2))
                 current_file = finished_match.group(3) or current_file
+                active_downloads.pop(finished_match.group(3), None)
                 continue
 
             complete_match = complete_pattern.match(line)
@@ -3586,6 +3605,7 @@ class PortalState:
                 last_done_index = download_total
                 current_index = download_total
                 current_file = None
+                active_downloads.clear()
 
         progress["current_file"] = current_file
         progress["download_total"] = download_total
@@ -3597,6 +3617,10 @@ class PortalState:
             and total_steps > 0
             and download_total
         ):
+            progress["active_downloads"] = [
+                {"filename": filename, "downloaded_bytes": downloaded_bytes}
+                for filename, downloaded_bytes in active_downloads.items()
+            ]
             completed_within_download = parallel_finished if parallel_finished is not None else last_done_index or 0
             if parallel_finished is None and current_index and current_file and completed_within_download < current_index:
                 completed_within_download = max(current_index - 1, 0)

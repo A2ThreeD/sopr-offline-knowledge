@@ -1448,6 +1448,11 @@
 
             <div class="status-panel" aria-live="polite">
               <div class="status-line" id="apply-status-text">Apply status: idle</div>
+              <div id="apply-zim-progress" hidden>
+                <p id="apply-zim-summary"></p>
+                <progress id="apply-zim-meter" aria-label="ZIM files processed"></progress>
+                <ul id="apply-zim-files"></ul>
+              </div>
               <div class="status-line status-log" id="apply-log-text">Apply log will appear here once configuration runs.</div>
             </div>
           </section>
@@ -1749,15 +1754,15 @@
         return;
       }
 
-      if (applyState.step === "Installing selected offline maps") {
+      if (applyState.step === "Installing United States offline maps") {
         applyNoticeText = "Offline map downloads are running in the background. You can keep using SOPR while they finish.";
       } else {
-        const currentFile = String(applyState.current_file || "").trim();
-        const progress = applyState.download_current && applyState.download_total
+        const activeFiles = (applyState.active_downloads || []).map((item) => item.filename);
+        const progress = applyState.download_total
           ? ` (${applyState.download_current}/${applyState.download_total})`
           : "";
-        applyNoticeText = currentFile
-          ? `Content downloads are running in the background${progress}: ${currentFile}`
+        applyNoticeText = activeFiles.length
+          ? `Downloading ${activeFiles.join(", ")}${progress}.`
           : `Content downloads are running in the background${progress}.`;
       }
       renderTopMessage();
@@ -2182,10 +2187,37 @@
       renderStorageEstimate();
     }
 
+    function renderZimProgress(state) {
+      const panel = document.getElementById("apply-zim-progress");
+      panel.hidden = state.status !== "running" ||
+        !["Downloading selected Kiwix content", "Downloading selected extra Kiwix content"].includes(state.step);
+      if (panel.hidden) return;
+
+      const total = state.download_total;
+      const processed = state.download_current ?? 0;
+      const meter = document.getElementById("apply-zim-meter");
+      meter.hidden = !total;
+      if (total) {
+        meter.max = total;
+        meter.value = processed;
+      }
+      const failures = state.download_failed ? ` · ${state.download_failed} failed` : "";
+      document.getElementById("apply-zim-summary").textContent = total
+        ? `${processed} of ${total} ZIM files processed${failures}`
+        : total === 0 ? "No ZIM files queued." : "Preparing ZIM downloads…";
+      const files = (state.active_downloads || []).map(({ filename, downloaded_bytes }) => {
+        const row = document.createElement("li");
+        row.textContent = downloaded_bytes ? `${filename} · ${formatBytes(downloaded_bytes)} downloaded` : `${filename} · Starting…`;
+        return row;
+      });
+      document.getElementById("apply-zim-files").replaceChildren(...files);
+    }
+
     function renderApplyState(state) {
       const step = state.step ? ` | ${state.step}` : "";
       const error = state.error ? ` | ${state.error}` : "";
       applyStatusText.textContent = `Apply status: ${state.status}${step}${error}`;
+      renderZimProgress(state);
       applyLogText.textContent = state.log_tail && state.log_tail.length
         ? state.log_tail.join("\n")
         : "Apply log will appear here once configuration runs.";

@@ -21,13 +21,22 @@ def download(url: str, target: Path, index: int, total: int) -> bool:
     staging_dir = target.parent / ".sopr-download-tmp"
     staged_file = staging_dir / target.name
     try:
-        result = subprocess.run(
+        with subprocess.Popen(
             ["wget", "--no-verbose", "-N", "-c", "--", url],
             cwd=staging_dir,
             env={**os.environ, "TMPDIR": str(staging_dir)},
-            check=False,
-        )
-        if result.returncode == 0 and staged_file.is_file():
+        ) as process:
+            while True:
+                try:
+                    return_code = process.wait(timeout=5)
+                    break
+                except subprocess.TimeoutExpired:
+                    try:
+                        downloaded_bytes = staged_file.stat().st_size
+                    except FileNotFoundError:
+                        downloaded_bytes = 0
+                    print(f"PROGRESS_DOWNLOAD_BYTES|{downloaded_bytes}|{target.name}", flush=True)
+        if return_code == 0 and staged_file.is_file():
             staged_file.replace(target)
             return True
     except OSError as exc:
@@ -78,8 +87,10 @@ def main() -> None:
             }
             for finished, task in enumerate(as_completed(pending), 1):
                 target, url = pending[task]
-                if not task.result():
+                succeeded = task.result()
+                if not succeeded:
                     failures.append(url)
+                    print(f"PROGRESS_DOWNLOAD_FAILED|{target.name}", flush=True)
                 print(f"PROGRESS_DOWNLOAD_FINISHED|{finished}|{total}|{target.name}", flush=True)
         print(f"PROGRESS_DOWNLOAD_COMPLETE|{total}", flush=True)
 
