@@ -4,6 +4,7 @@
 # Install the SOPR offline knowledge stack and web assets.
 
 set -euo pipefail
+trap 'result=$?; printf "SOPR installation stopped at line %s (exit %s): %s\n" "$LINENO" "$result" "$BASH_COMMAND" >&2; exit "$result"' ERR
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${PREPMASTER_ENV_FILE:-${SOPR_ENV_FILE:-$REPO_ROOT/config/sopr.env}}"

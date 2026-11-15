@@ -121,11 +121,11 @@ SOPR_AP_ENABLED=0
 ### 5. Install and verify the base system
 
 ```bash
-sudo ./scripts/install_sopr.sh
-systemctl status sopr-portal.service --no-pager
-systemctl status sopr-kiwix.service --no-pager
-systemctl status nginx --no-pager
+sudo ./scripts/install_sopr.sh &&
+  systemctl status sopr-portal.service sopr-kiwix.service nginx.service --no-pager
 ```
+
+The installer prints `SOPR base installation complete.` when it finishes. If it stops earlier, use the first error from the installer output to diagnose the failure.
 
 Download the selected quick-test library:
 

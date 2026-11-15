@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SOPR Offline Knowledge
+# Copyright (c) 2026 Aaron Morris / A2ThreeD.
+# Install the base operating system dependencies.
 
 set -euo pipefail
 
@@ -35,6 +38,7 @@ PACKAGES=(
   python3
   python3-pip
   python3-venv
+  python3-yaml
   rsync
   sqlite3
   dnsmasq
