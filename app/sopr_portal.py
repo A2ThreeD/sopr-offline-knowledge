@@ -996,6 +996,7 @@ class PortalState:
                 {
                     "name": path.name,
                     "size_bytes": details["size_bytes"],
+                    "external": path.is_symlink(),
                     "valid": details["valid"],
                     "error": details["error"],
                 }
@@ -1050,6 +1051,7 @@ class PortalState:
             "active_size_bytes": active_details["size_bytes"],
             "available_files": valid_packages,
             "invalid_files": invalid_packages,
+            "inventory": inventory,
             "flavor": env.get("PREPMASTER_MAP_STYLE_FLAVOR", "dark"),
             "language": env.get("PREPMASTER_MAP_LANGUAGE", "en"),
             "install_dir": str(self.preferred_map_install_dir()),

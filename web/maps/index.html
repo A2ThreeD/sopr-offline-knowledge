@@ -430,7 +430,6 @@
         </div>
         <div class="actions">
           <button class="button" id="go-button" type="button">Go To Coordinates</button>
-          <a class="button secondary" id="build-map-from-view" href="/admin/#maps">Build Map From This View</a>
         </div>
       </section>
 
@@ -881,8 +880,6 @@
         });
 
         mapInstance.addControl(new maplibregl.NavigationControl(), "top-right");
-        mapInstance.on("moveend", updateBuildMapLink);
-        updateBuildMapLink();
         mapInstance.once("idle", () => {
           clearMapStatus();
           mapReloadInProgress = false;
@@ -1006,27 +1003,6 @@
       } catch (error) {
         // Ignore periodic sync failures and keep the current map view.
       }
-    }
-
-    const buildMapLink = document.getElementById("build-map-from-view");
-    function updateBuildMapLink() {
-      if (!mapInstance) return;
-      const bounds = mapInstance.getBounds();
-      const span = bounds.getEast() - bounds.getWest();
-      const west = ((bounds.getWest() + 180) % 360 + 360) % 360 - 180;
-      const east = west + span;
-      if (span < 360 && east > 180) {
-        buildMapLink.href = "/admin/#maps";
-        buildMapLink.title = "Enter bounds for one side of the date line in Settings.";
-        return;
-      }
-      buildMapLink.removeAttribute("title");
-      const coordinates = [
-        span >= 360 ? -180 : west, Math.max(-85.0511, bounds.getSouth()),
-        span >= 360 ? 180 : east, Math.min(85.0511, bounds.getNorth())
-      ];
-      const params = new URLSearchParams({ map_bounds: coordinates.map((value) => value.toFixed(7)).join(",") });
-      buildMapLink.href = `/admin/?${params}#maps`;
     }
 
     document.getElementById("go-button").addEventListener("click", () => {
