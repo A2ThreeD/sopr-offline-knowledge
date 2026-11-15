@@ -38,6 +38,15 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(fetch.call_args.args[0].full_url, portal.KIWIX_MIRROR_ROOT)
         self.assertEqual(links[0]['href'], 'other/')
 
+    def test_dotsrc_span_links_and_binary_sizes(self):
+        parser = portal.DirectoryIndexParser()
+        parser.feed(
+            '<tr><td><span href="gutenberg/">gutenberg/</span></td><td>-</td></tr>'
+            '<tr><td><span href="book.zim">book.zim</span></td><td>1.5 MiB</td></tr>'
+        )
+        self.assertEqual([item["href"] for item in parser.links], ["gutenberg/", "book.zim"])
+        self.assertEqual(parser.links[1]["size_bytes"], 1572864)
+
     def test_legacy_root_and_cache_move_to_debian(self):
         self.state.maps_env = lambda: {'PREPMASTER_ZIM_CATALOG_URL': 'https://download.kiwix.org/zim/'}
         self.assertEqual(self.state.zim_catalog_root(), portal.KIWIX_MIRROR_ROOT)

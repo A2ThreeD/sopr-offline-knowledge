@@ -255,22 +255,22 @@ class DirectoryIndexParser(HTMLParser):
         self.links: list[dict[str, object]] = []
         self._current_href: str | None = None
         self._current_text: list[str] = []
-        self._capturing_anchor = False
+        self._link_tag: str | None = None
         self._last_anchor: dict[str, object] | None = None
         self._tail_text: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag != "a":
+        if tag not in {"a", "span"}:
             return
         attributes = dict(attrs)
         href = attributes.get("href")
         if href:
-            self._capturing_anchor = True
+            self._link_tag = tag
             self._current_href = href
             self._current_text = []
 
     def handle_endtag(self, tag: str) -> None:
-        if tag != "a" or not self._capturing_anchor or not self._current_href:
+        if tag != self._link_tag or not self._current_href:
             return
         name = "".join(self._current_text).strip()
         entry = {
@@ -282,12 +282,12 @@ class DirectoryIndexParser(HTMLParser):
         self.links.append(entry)
         self._last_anchor = entry
         self._tail_text = []
-        self._capturing_anchor = False
+        self._link_tag = None
         self._current_href = None
         self._current_text = []
 
     def handle_data(self, data: str) -> None:
-        if self._capturing_anchor:
+        if self._link_tag is not None:
             self._current_text.append(data)
             return
         if not self._last_anchor:
@@ -306,6 +306,10 @@ def parse_apache_index_tail(text: str) -> tuple[int | None, str | None]:
     tokens = cleaned.strip().split()
     if not tokens:
         return None, None
+    if len(tokens) >= 2 and re.fullmatch(r"[KMGTP]IB", tokens[-1].upper()):
+        label = tokens[-2] + tokens[-1][0].upper()
+        size_bytes = parse_size_label_to_bytes(label)
+        return size_bytes, label if size_bytes is not None else None
     label = tokens[-1].upper()
     if not re.fullmatch(r"(\d+(?:\.\d+)?[KMGTP]?|-)", label):
         return None, None
