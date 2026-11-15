@@ -5,6 +5,7 @@
 
 import argparse
 import fcntl
+import json
 import os
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -12,7 +13,8 @@ from pathlib import Path
 
 
 MIRROR = "https://cdimage.debian.org/mirror/kiwix.org/zim/"
-LEGACY_MIRRORS = ("https://download.kiwix.org/zim/", "https://lb.download.kiwix.org/zim/")
+MIRROR_OPTIONS = Path(__file__).resolve().parents[1] / "catalog" / "zim-mirrors.json"
+MIRROR_ROOTS = ("https://download.kiwix.org/zim/", *(item["url"] for item in json.loads(MIRROR_OPTIONS.read_text())))
 
 
 def download(url: str, target: Path, index: int, total: int) -> bool:
@@ -45,15 +47,15 @@ def download(url: str, target: Path, index: int, total: int) -> bool:
     return False
 
 
-def manifest_targets(manifest: Path, library: Path, wikipedia: Path) -> dict[Path, str]:
+def manifest_targets(manifest: Path, library: Path, wikipedia: Path, mirror: str = MIRROR) -> dict[Path, str]:
     targets = {}
     for line in manifest.read_text().splitlines():
         url = line.strip()
         if not url or url.startswith("#"):
             continue
-        for prefix in LEGACY_MIRRORS:
+        for prefix in MIRROR_ROOTS:
             if url.startswith(prefix):
-                url = MIRROR + url.removeprefix(prefix)
+                url = mirror + url.removeprefix(prefix)
                 break
         name = url.rsplit("/", 1)[-1]
         directory = wikipedia if "/zim/wikipedia/" in url or name.startswith("wikipedia_") else library
@@ -68,9 +70,13 @@ def main() -> None:
     parser.add_argument("download_dir", type=Path)
     parser.add_argument("wikipedia_dir", type=Path)
     parser.add_argument("jobs", type=int, choices=range(1, 4))
+    parser.add_argument("--mirror", default=MIRROR)
     args = parser.parse_args()
+    mirror = args.mirror.rstrip("/") + "/"
+    if mirror == MIRROR_ROOTS[0]:
+        mirror = MIRROR
 
-    targets = manifest_targets(args.manifest, args.download_dir.resolve(), args.wikipedia_dir.resolve())
+    targets = manifest_targets(args.manifest, args.download_dir.resolve(), args.wikipedia_dir.resolve(), mirror)
     total = len(targets)
     failures = []
     with (args.library / ".sopr-zim-download.lock").open("a") as lock:

@@ -74,7 +74,8 @@ install -d -m 0755 "$DOWNLOAD_WIKIPEDIA_DIR/.sopr-download-tmp"
 
 python3 "$REPO_ROOT/scripts/download_zim_batch.py" \
   "$URL_FILE" "$KIWIX_LIBRARY_DIR" "$DOWNLOAD_LIBRARY_DIR" "$DOWNLOAD_WIKIPEDIA_DIR" \
-  "${PREPMASTER_ZIM_DOWNLOAD_JOBS:-3}"
+  "${PREPMASTER_ZIM_DOWNLOAD_JOBS:-3}" \
+  --mirror "${PREPMASTER_ZIM_CATALOG_URL:-https://cdimage.debian.org/mirror/kiwix.org/zim/}"
 
 link_roots=("$DOWNLOAD_LIBRARY_DIR")
 if [[ "$DOWNLOAD_WIKIPEDIA_DIR" != "$DOWNLOAD_LIBRARY_DIR" ]]; then

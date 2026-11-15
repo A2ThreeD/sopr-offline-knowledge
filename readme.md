@@ -105,7 +105,7 @@ sudo ./sopr/scripts/install_sopr.sh
 
 ### 5. Complete setup
 
-Open [SOPR](http://sopr.local/) or use the Raspberry Pi's IP address. Select **Complete Setup** to download the offline library and maps for all 50 U.S. states. Use **Settings → Maps** to add more regions.
+Open [SOPR](http://sopr.local/) or use the Raspberry Pi's IP address. Select **Complete Setup** to download the offline library. After setup, open **Settings → Maps** to select and download maps.
 
 The ZIM library is stored at `/library/zims/content`. Large libraries can take considerable time and storage; keep the Pi powered and connected to the network until the download finishes. If a download fails, SOPR reports the failed URL, continues with the remaining content, and continues the installation. Run the download again to retry; incomplete downloads are kept in `.sopr-download-tmp` in the destination directory. SOPR downloads up to three ZIM files at a time by default. Set `SOPR_ZIM_DOWNLOAD_JOBS` to `1`, `2`, or `3` in `config/sopr.env`. Existing ZIM files remain available during a refresh, which downloads a fresh copy before replacing them and therefore requires additional time and free space.
 
@@ -116,7 +116,7 @@ The ZIM library is stored at `/library/zims/content`. Large libraries can take c
 - The generated manifest in `config/kiwix-zim-urls.txt` is built from that YAML catalog using `PREPMASTER_ZIM_PROFILE`.
 - The selected Wikipedia variant is controlled by `PREPMASTER_WIKIPEDIA_OPTION` and sourced from `catalog/wikipedia.yaml`.
 - Supported profiles are `essential`, `standard`, and `comprehensive`. Standard adds Wikipedia Medicine without images, Appropedia, Post-Disaster Library, Sustainable Living Q&A, Hundred Rabbits, CD3WD, Low-tech Magazine, and Electronics Q&A. Comprehensive inherits those titles.
-- **Settings → Content → Check Online Catalog** browses the Debian Kiwix mirror by default. The first refresh runs in the background. **Download Selected ZIMs** queues available selections and reports unavailable ones when the catalog is current.
+- **Settings → Content → Check Online Catalog** browses the selected ZIM mirror. Debian is the default. Setup and **Settings → Content** also offer the official Kiwix mirror and Dotsrc. The first refresh runs in the background. **Download Selected ZIMs** queues available selections and reports unavailable ones when the catalog is current.
 - The home page is a vertical stack of cards. Project Gutenberg Library opens its Kiwix collection, and Medical & First Aid, Food and Water, Survival & Shelter, Repair, Communication, and Power and Energy open topic filters. Settings is the last card. Library rebuilds refresh the SOPR topic tags.
 - Set `SOPR_ZIM_MODE=quick-test` if you want a small validation download before pulling the full content set.
 - The main page is now intended to be a first-start configuration screen with base install selected by default.

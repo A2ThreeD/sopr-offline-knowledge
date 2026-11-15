@@ -1297,7 +1297,6 @@
                 <p>Offline reference material for everyday use, emergencies, and practical skills.</p>
                 <ul>
                   <li>Includes the Wikipedia choice from the next step</li>
-                  <li>Includes offline maps for all 50 U.S. states</li>
                   <li>Includes medical, repair, and preparedness references</li>
                   <li>Includes the core SOPR tools</li>
                 </ul>
@@ -1334,6 +1333,10 @@
               <p>Choose how much SOPR content to include, then pick the Wikipedia option that best fits your storage space.</p>
             </div>
 
+            <div class="subsection-head">
+              <label for="setup-zim-mirror">ZIM Download Mirror</label>
+              <select id="setup-zim-mirror"></select>
+            </div>
             <div class="content-selector-shell">
               <div class="content-selector-panel">
                 <span class="content-selector-title">Choose Your Content Amount</span>
@@ -1375,11 +1378,10 @@
           <section class="step-panel" data-step-panel="2">
             <div class="panel-head">
               <span class="eyebrow">Step 3</span>
-              <h2>United States Offline Maps</h2>
-              <p>Complete Setup includes Protomaps coverage for all 50 states. Add more countries from Settings → Maps after setup.</p>
+              <h2>Offline Maps</h2>
+              <p>After installation, open Settings → Maps to select and download the maps you want.</p>
             </div>
 
-            <p class="small-note" id="map-note">Checking the space needed for the United States maps.</p>
           </section>
 
           <section class="step-panel" data-step-panel="3">
@@ -1438,7 +1440,7 @@
               </article>
               <article class="review-card">
                 <h3>Maps</h3>
-                <p id="review-maps">United States (all 50 states).</p>
+                <p>Select maps in Settings → Maps after setup.</p>
               </article>
               <article class="review-card">
                 <h3>Connection</h3>
@@ -1646,11 +1648,11 @@
     const wikipediaSummaryTitle = document.getElementById("wikipedia-summary-title");
     const wikipediaSummarySubtext = document.getElementById("wikipedia-summary-subtext");
     const wikipediaSummary = document.getElementById("wikipedia-summary");
-    const mapNote = document.getElementById("map-note");
+
+    const setupZimMirror = document.getElementById("setup-zim-mirror");
 
     const reviewModules = document.getElementById("review-modules");
     const reviewWikipedia = document.getElementById("review-wikipedia");
-    const reviewMaps = document.getElementById("review-maps");
     const reviewNetwork = document.getElementById("review-network");
     const storageSummary = document.getElementById("storage-summary");
     const storageUsedSegment = document.getElementById("storage-used-segment");
@@ -1846,7 +1848,7 @@
       const kolibriMb = setupState.installKolibri && !storageState?.kolibri_installed
         ? Number(storageState?.kolibri_estimated_mb || 0)
         : 0;
-      return Math.round((tierMb + wikiMb + kolibriMb) * 1024 * 1024) + Number(storageState?.missing_us_map_bytes || 0);
+      return Math.round((tierMb + wikiMb + kolibriMb) * 1024 * 1024);
     }
 
     function selectedStorageCapacity(
@@ -1858,8 +1860,7 @@
       const destinations = [
         internalDestination,
         getContentInstallDestination(contentInstallDir),
-        getWikipediaInstallDestination(wikipediaInstallDir),
-        storageState?.map_install_destination?.location === "external" ? storageState.map_install_destination : null
+        getWikipediaInstallDestination(wikipediaInstallDir)
       ].filter(Boolean);
       const seen = new Set();
       let totalBytes = 0;
@@ -1981,7 +1982,6 @@
           }
           renderContentTiers();
           renderWikipediaOptions();
-          renderMapOptions();
           renderSetupSummary();
         });
 
@@ -2012,7 +2012,6 @@
           setupState.contentInstallDir = event.target.value;
           renderContentTiers();
           renderWikipediaOptions();
-          renderMapOptions();
           renderSetupSummary();
         });
 
@@ -2083,7 +2082,6 @@
       select.addEventListener("change", (event) => {
         setupState.wikipediaInstallDir = event.target.value;
         renderWikipediaOptions();
-        renderMapOptions();
         renderSetupSummary();
       });
       const storageHint = document.createElement("p");
@@ -2143,20 +2141,11 @@
             setupState.wikipediaInstallDir = wikipediaInstallDestinations[0]?.path || setupState.wikipediaInstallDir;
           }
           renderWikipediaOptions();
-          renderMapOptions();
           renderSetupSummary();
         });
 
         wikipediaOptionsContainer.appendChild(button);
       });
-    }
-
-    function renderMapOptions() {
-      if (!storageState) return;
-      const missing = Number(storageState.missing_us_map_bytes || 0);
-      mapNote.textContent = missing
-        ? `About ${formatBytes(missing)} to download to ${storageState.map_install_destination?.label || "map storage"}.`
-        : "United States map packages are already installed.";
     }
 
     function renderSelectionCards() {
@@ -2174,14 +2163,12 @@
       const wikipediaText = selectedWikipedia
         ? `${selectedTier?.name || "Content"} content (${selectedTier?.size_label || formatSize(Number(selectedTier?.size_mb || 0))}) + ${selectedWikipedia.name} (${formatSize(selectedWikipedia.size_mb)}).`
         : `${selectedTier?.name || "Content"} content selected.`;
-      const mapsText = "United States (all 50 states).";
       const networkText = setupState.apEnabled
         ? "Device Wi-Fi enabled for direct access."
         : "Use an existing network connection.";
 
       reviewModules.textContent = modulesText;
       reviewWikipedia.textContent = wikipediaText;
-      reviewMaps.textContent = mapsText;
       reviewNetwork.textContent = networkText;
 
       renderStorageEstimate();
@@ -2271,9 +2258,6 @@
       const tierBytes = Math.round(tierMb * 1024 * 1024);
       const wikiMb = Number(storageState.missing_by_wikipedia?.[selectedWikipedia?.id || ""] || 0);
       const wikiBytes = Math.round(wikiMb * 1024 * 1024);
-      const mapBytes = Number(storageState.missing_us_map_bytes || 0);
-      const mapDestination = storageState.map_install_destination;
-      const mapsAreInternal = mapDestination?.location !== "external";
       const kolibriMb = setupState.installKolibri && !storageState.kolibri_installed
         ? Number(storageState.kolibri_estimated_mb || 0)
         : 0;
@@ -2281,8 +2265,8 @@
       const contentBytesExternal = contentDestinationIsInternal ? 0 : tierBytes;
       const wikipediaBytesInternal = wikipediaDestinationIsInternal ? wikiBytes : 0;
       const wikipediaBytesExternal = wikipediaDestinationIsInternal ? 0 : wikiBytes;
-      const internalAddedBytes = contentBytesInternal + wikipediaBytesInternal + (mapsAreInternal ? mapBytes : 0) + Math.round(kolibriMb * 1024 * 1024);
-      const addedBytes = internalAddedBytes + contentBytesExternal + wikipediaBytesExternal + (mapsAreInternal ? 0 : mapBytes);
+      const internalAddedBytes = contentBytesInternal + wikipediaBytesInternal + Math.round(kolibriMb * 1024 * 1024);
+      const addedBytes = internalAddedBytes + contentBytesExternal + wikipediaBytesExternal;
 
       const capacity = selectedStorageCapacity(effectiveContentInstallDir(), effectiveWikipediaInstallDir());
       const totalBytes = capacity.totalBytes;
@@ -2291,8 +2275,7 @@
       const projectedFreeBytes = totalBytes - projectedUsedBytes;
       const projectedFreePercent = totalBytes > 0 ? (projectedFreeBytes / totalBytes) * 100 : 0;
       const exceedsDisk = projectedFreeBytes < 0
-        || internalAddedBytes > Number(internalDestination?.free_bytes ?? storageState.disk.free_bytes)
-        || (!mapsAreInternal && mapBytes > Number(mapDestination.free_bytes));
+        || internalAddedBytes > Number(internalDestination?.free_bytes ?? storageState.disk.free_bytes);
       const nearFull = !exceedsDisk && projectedFreePercent <= Number(storageState.warning_free_percent || 10);
       storageLimitExceeded = exceedsDisk;
 
@@ -2316,9 +2299,6 @@
         if (selectedWikipedia) {
           const destinationLabel = wikipediaDestinationIsInternal ? "internal storage" : (wikipediaDestination?.label || "selected Wikipedia storage");
           summaryParts.push(`${formatBytes(wikiBytes)} for ${selectedWikipedia.name} on ${destinationLabel}`);
-        }
-        if (mapBytes > 0) {
-          summaryParts.push(`${formatBytes(mapBytes)} for U.S. maps on ${mapDestination?.label || "internal storage"}`);
         }
         if (kolibriMb > 0) {
           summaryParts.push(`${formatBytes(Math.round(kolibriMb * 1024 * 1024))} for learning tools on internal storage`);
@@ -2382,7 +2362,7 @@
       const notes = [
         "Step 1 of 5. Start by choosing what to include on this device.",
         "Step 2 of 5. Choose your content tier, storage disk, and Wikipedia package.",
-        "Step 3 of 5. Review the included United States maps.",
+        "Step 3 of 5. Maps are available in Settings after setup.",
         "Step 4 of 5. Choose how people will connect to this device.",
         "Step 5 of 5. Review your choices and complete setup when ready."
       ];
@@ -2419,6 +2399,7 @@
             install_kolibri: setupState.installKolibri,
             install_ka_lite: false,
             zim_profile: setupState.zimProfile,
+            ...(setupZimMirror.selectedOptions[0]?.dataset.listed ? { zim_mirror: setupZimMirror.value } : {}),
             content_install_dir: effectiveContentInstallDir(),
             wikipedia_option: setupState.wikipediaOption,
             wikipedia_install_dir: effectiveWikipediaInstallDir(),
@@ -2449,7 +2430,6 @@
         renderSelectionCards();
         renderContentTiers();
         renderWikipediaOptions();
-        renderMapOptions();
         renderSetupSummary();
         renderMode(payload);
         return payload;
@@ -2544,6 +2524,17 @@
           ? state.storage.wikipedia_install_destinations
           : [];
 
+        const mirrorOptions = state.setup_options?.zim_mirrors || [];
+        setupZimMirror.replaceChildren(...mirrorOptions.map(({ label, url }) => {
+          const option = new Option(label, url);
+          option.dataset.listed = "true";
+          return option;
+        }));
+        if (mirrorOptions.some(({ url }) => url === state.profile.zim_mirror)) {
+          setupZimMirror.value = state.profile.zim_mirror;
+        } else if (state.profile.zim_mirror) {
+          setupZimMirror.add(new Option("Configured mirror", state.profile.zim_mirror, true, true));
+        }
         setupState.installKolibri = Boolean(state.profile.install_kolibri);
         setupState.apEnabled = Boolean(state.profile.ap_enabled);
         setupState.zimProfile = state.profile.zim_profile || "essential";
@@ -2575,7 +2566,6 @@
         renderSelectionCards();
         renderContentTiers();
         renderWikipediaOptions();
-        renderMapOptions();
         renderSetupSummary();
         configureKolibriTile(state);
         renderApplyState(applyState);
@@ -2589,7 +2579,6 @@
         renderSelectionCards();
         renderContentTiers();
         renderWikipediaOptions();
-        renderMapOptions();
         renderSetupSummary();
         configureKolibriTile(null);
         enteredSetupFlow = true;
@@ -2607,7 +2596,6 @@
       setupState.installKolibri = !setupState.installKolibri;
       renderSelectionCards();
       renderWikipediaOptions();
-      renderMapOptions();
       renderSetupSummary();
     });
 

@@ -630,8 +630,6 @@ class PortalState:
             profile = "essential"
         tier_catalog = self.kiwix_tier_catalog()
         kolibri_installed = Path("/usr/bin/kolibri").exists()
-        us = next((country for country in self.country_map_catalog()["countries"] if country["id"] == "US"), {})
-        map_target = next((target for target in self.install_destinations("maps") if target["selected"]), {})
         return {
             "disk": {
                 "total_bytes": total,
@@ -664,8 +662,6 @@ class PortalState:
             "kolibri_estimated_mb": 1500,
             "kolibri_installed": kolibri_installed,
             "kolibri_url": f"http://{self.detect_primary_host()}:{env.get('PREPMASTER_KOLIBRI_PORT', '8082')}/",
-            "missing_us_map_bytes": us.get("missing_bytes", 0),
-            "map_install_destination": map_target,
             "zim_mode": env.get("PREPMASTER_ZIM_MODE", "full"),
             "warning_free_percent": 10,
             "volumes": volumes,
@@ -693,11 +689,13 @@ class PortalState:
             "last_saved_at": state.get("last_saved_at"),
             "setup_options": {
                 "wikipedia": wikipedia_catalog,
+                "zim_mirrors": self.zim_mirrors(),
             },
             "profile": {
                 "install_kolibri": profile.get("INSTALL_KOLIBRI", "0") == "1",
                 "install_ka_lite": profile.get("INSTALL_KA_LITE", "0") == "1",
                 "wikipedia_option": wikipedia_option,
+                "zim_mirror": self.zim_catalog_root(),
                 "ap_enabled": prepmaster.get("PREPMASTER_AP_ENABLED", "0") == "1",
                 "zim_mode": prepmaster.get("PREPMASTER_ZIM_MODE", "full"),
                 "zim_profile": prepmaster.get("PREPMASTER_ZIM_PROFILE", "essential"),
@@ -1246,10 +1244,17 @@ class PortalState:
         parser.feed(html)
         return parser.links
 
+    def zim_mirrors(self) -> list[dict]:
+        return read_json(self.repo_root / "catalog" / "zim-mirrors.json", [])
+
+    def validate_zim_mirror(self, mirror: object) -> str:
+        if not isinstance(mirror, str) or mirror not in {item["url"] for item in self.zim_mirrors()}:
+            raise ValueError("Choose a listed ZIM download mirror.")
+        return mirror
+
     def zim_catalog_root(self) -> str:
-        env = self.maps_env()
-        root = env.get("PREPMASTER_ZIM_CATALOG_URL", "").strip().rstrip("/")
-        if root in {"", "https://download.kiwix.org/zim", "https://lb.download.kiwix.org/zim"}:
+        root = self.maps_env().get("PREPMASTER_ZIM_CATALOG_URL", "").strip().rstrip("/")
+        if root in {"", "https://download.kiwix.org/zim"}:
             return KIWIX_MIRROR_ROOT
         return root + "/"
 
@@ -1334,12 +1339,14 @@ class PortalState:
         return payload
 
     def refresh_kiwix_catalog_in_background(self) -> None:
+        root_url = self.zim_catalog_root()
         try:
             self.build_kiwix_catalog_payload()
         except Exception as exc:
             # Surface background failures to the polling UI, keeping saved data.
             with self.content_catalog_lock:
-                self.content_catalog_refresh_error = str(exc)
+                if self.zim_catalog_root() == root_url:
+                    self.content_catalog_refresh_error = str(exc)
         finally:
             with self.content_catalog_lock:
                 self.content_catalog_refresh_thread = None
@@ -1441,6 +1448,7 @@ class PortalState:
             "wikipedia_option": env.get("PREPMASTER_WIKIPEDIA_OPTION", "top-mini"),
             "library_root": str(self.kiwix_library_dir()),
             "catalog_root": self.zim_catalog_root(),
+            "zim_mirrors": self.zim_mirrors(),
             "custom_manifest": str(self.custom_zim_manifest_path()),
             "custom_selection_file": str(self.custom_zim_selection_path()),
             "custom_selected_paths": sorted(selected_paths),
@@ -1458,6 +1466,14 @@ class PortalState:
         }
 
     def save_content_settings(self, payload: dict) -> dict:
+        if "zim_mirror" in payload:
+            mirror = self.validate_zim_mirror(payload["zim_mirror"])
+            if mirror != self.zim_catalog_root():
+                update_env_file(self.sopr_env, {"PREPMASTER_ZIM_CATALOG_URL": mirror})
+                with self.content_catalog_lock:
+                    self.content_catalog_refresh_attempt = 0
+                    self.content_catalog_refresh_error = None
+            return self.content_status()
         env = self.maps_env()
         library_preset = payload.get("library_preset")
         if library_preset is None:
@@ -1999,7 +2015,7 @@ class PortalState:
             })
         return {"bundles": catalog.get("bundles", []), "countries": countries}
 
-    def start_country_map_builds(self, payload: dict, *, during_setup: bool = False) -> dict:
+    def start_country_map_builds(self, payload: dict) -> dict:
         ids = payload.get("country_ids") if isinstance(payload, dict) else None
         if not isinstance(ids, list) or not ids or any(not isinstance(code, str) for code in ids):
             raise ValueError("Select at least one country to install.")
@@ -2015,12 +2031,10 @@ class PortalState:
             if part["filename"] not in installed
         ]
         if not builds:
-            if during_setup:
-                return {"status": "succeeded"}
             raise ValueError("The selected country maps are already installed.")
-        return self.queue_map_builds(builds, "countries", during_setup=during_setup)
+        return self.queue_map_builds(builds, "countries")
 
-    def queue_map_builds(self, builds: list[tuple], operation: str, *, during_setup: bool = False) -> dict:
+    def queue_map_builds(self, builds: list[tuple], operation: str) -> dict:
         source = self.map_build_source()
         if source.startswith("https://"):
             parsed = urlparse(source)
@@ -2035,7 +2049,7 @@ class PortalState:
 
         with self.apply_lock, self.map_sync_lock:
             apply = self.load_apply_state()
-            if not during_setup and apply.get("status") == "running" and apply.get("action") == "full":
+            if apply.get("status") == "running" and apply.get("action") == "full":
                 raise RuntimeError("Wait for setup to finish before building a map.")
             if self.load_map_sync_state().get("status") == "running":
                 raise RuntimeError("Another map job is already running.")
@@ -2410,6 +2424,9 @@ class PortalState:
         )
 
     def save_setup(self, payload: dict) -> dict:
+        mirror_updates = {}
+        if "zim_mirror" in payload:
+            mirror_updates["PREPMASTER_ZIM_CATALOG_URL"] = self.validate_zim_mirror(payload["zim_mirror"])
         wikipedia_option = payload.get("wikipedia_option", "top-mini")
         valid_wikipedia_options = {
             str(option.get("id", "")).strip()
@@ -2453,6 +2470,7 @@ class PortalState:
         update_env_file(
             self.sopr_env,
             {
+                **mirror_updates,
                 "PREPMASTER_WIKIPEDIA_OPTION": wikipedia_option,
                 "PREPMASTER_ZIM_PROFILE": zim_profile,
                 "PREPMASTER_ZIM_INSTALL_DIR": content_install_dir,
@@ -3229,18 +3247,11 @@ class PortalState:
         state["log_tail"] = self.read_log_tail()
         state.update(self.parse_apply_progress(state))
         step = str(state.get("step") or "")
-        if state.get("status") == "running" and step == "Installing United States offline maps":
-            map_job = self.load_map_sync_state()
-            if map_job.get("status") == "running":
-                state["current_file"] = map_job.get("current_label")
-                state["download_current"] = map_job.get("current_index")
-                state["download_total"] = map_job.get("total_files")
         state["downloads_active"] = bool(
             state.get("status") == "running"
             and step in {
                 "Downloading selected Kiwix content",
                 "Downloading selected extra Kiwix content",
-                "Installing United States offline maps",
             }
         )
         state["can_leave_to_home"] = bool(
@@ -3388,10 +3399,6 @@ class PortalState:
                 [str(self.repo_root / "scripts" / "download_kiwix_zims.sh")],
             ),
             (
-                "Installing United States offline maps",
-                ["__internal_us_maps__"],
-            ),
-            (
                 "Rebuilding Kiwix library",
                 [str(self.repo_root / "scripts" / "rebuild_kiwix_library.sh")],
             ),
@@ -3436,29 +3443,6 @@ class PortalState:
                 )
                 log_handle.write(f"\n== {step} ==\n")
                 log_handle.flush()
-                if command == ["__internal_us_maps__"]:
-                    if env.get("PREPMASTER_ZIM_MODE") == "quick-test":
-                        log_handle.write("Quick-test mode skips the full United States maps.\n")
-                        log_handle.flush()
-                        continue
-                    try:
-                        map_job = self.start_country_map_builds({"country_ids": ["US"]}, during_setup=True)
-                        if "selected_files" in map_job:
-                            log_handle.write("Detailed extraction progress is available in Settings → Maps.\n")
-                            log_handle.flush()
-                            assert self.map_sync_thread is not None
-                            self.map_sync_thread.join()
-                            map_job = self.load_map_sync_state()
-                        else:
-                            log_handle.write("United States maps are already installed.\n")
-                        if map_job["status"] != "succeeded":
-                            raise RuntimeError(map_job.get("error") or "United States map installation was cancelled.")
-                    except (ValueError, RuntimeError) as exc:
-                        exit_code = 1
-                        error_message = str(exc)
-                        break
-                    continue
-
                 return_code = self.run_logged_command(
                     command,
                     env=env,

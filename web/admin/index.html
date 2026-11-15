@@ -738,7 +738,8 @@
       overflow-x: hidden;
     }
 
-    #country-map-list {
+    #country-map-list,
+    #maps-catalog-list {
       max-height: 21rem;
       overflow-y: auto;
       overflow-x: hidden;
@@ -1464,6 +1465,10 @@
           <p class="muted">
             Browse the online Kiwix catalog here and add more ZIM files to this device whenever you want.
           </p>
+          <div class="field">
+            <label for="content-zim-mirror">ZIM Download Mirror</label>
+            <select id="content-zim-mirror"></select>
+          </div>
           <p class="muted" id="zim-catalog-source">Catalog source: online check on demand</p>
           <div class="actions">
             <button class="button" data-icon="☁" id="refresh-zim-catalog-button" type="button">Check Online Catalog</button>
@@ -1607,6 +1612,22 @@
             <pre id="maps-sync-log">No map sync activity yet.</pre>
           </div>
         </section>
+        <section class="card">
+          <h2>Prebuilt Regional Packages</h2>
+          <p class="muted">
+            Choose All Regions or the specific regions you want on the Pi. Updating installed maps will download the selected regions and remove unchecked regional map packages.
+          </p>
+          <p class="muted" id="maps-catalog-source">Catalog source: loading</p>
+          <div class="field">
+            <label>Regional Map Downloads</label>
+            <div id="maps-catalog-list" class="log-panel muted">Online catalog is idle. Click Check Online Catalog when you want to query the latest regional map catalog.</div>
+          </div>
+          <div class="actions">
+            <button class="button" data-icon="☑" id="select-all-maps-button" type="button">SELECT ALL</button>
+            <button class="button" data-icon="☁" id="refresh-catalog-button" type="button">Check Online Catalog</button>
+            <button class="button" data-icon="↓" id="sync-maps-button" type="button" disabled>Update Installed Maps</button>
+          </div>
+        </section>
       </div>
     </section>
 
@@ -1716,6 +1737,8 @@
     let currentContentCategory = "all";
     let currentContentPage = 1;
     let currentMaps = null;
+    let currentCatalog = null;
+    let pendingMapSelection = new Set();
     let countryMapCatalog = null;
     const selectedCountries = new Set();
     let mapJobRunning = false;
@@ -2328,6 +2351,61 @@
         .join(" ");
     }
 
+    function mapCatalogCollections(catalog = currentCatalog) {
+      return Array.isArray(catalog && catalog.collections) ? catalog.collections : [];
+    }
+
+    function mapCollectionBySlug(slug, catalog = currentCatalog) {
+      return mapCatalogCollections(catalog).find((collection) => collection.slug === slug) || null;
+    }
+
+    function normalizePendingMapSelection() {
+      if (pendingMapSelection.has("all")) {
+        pendingMapSelection = new Set(["all"]);
+      }
+    }
+
+    function selectedMapFilesFromRegions(selection = pendingMapSelection, catalog = currentCatalog) {
+      const selected = new Set(selection || []);
+      const collections = mapCatalogCollections(catalog);
+      if (selected.has("all")) {
+        return Array.from(
+          new Set(
+            collections.flatMap((collection) => Array.isArray(collection.resource_names) ? collection.resource_names : [])
+          )
+        ).sort();
+      }
+      return Array.from(
+        new Set(
+          collections
+            .filter((collection) => selected.has(collection.slug))
+            .flatMap((collection) => Array.isArray(collection.resource_names) ? collection.resource_names : [])
+        )
+      ).sort();
+    }
+
+    function installedMapNames(maps = currentMaps) {
+      return new Set([
+        ...((maps && maps.available_files) || []),
+        ...(((maps && maps.invalid_files) || []).map((item) => item.name))
+      ]);
+    }
+
+    function installedMapRegions(maps = currentMaps, catalog = currentCatalog) {
+      const installed = installedMapNames(maps);
+      return mapCatalogCollections(catalog).map((collection) => {
+        const resourceNames = Array.isArray(collection.resource_names) ? collection.resource_names : [];
+        const installedNames = resourceNames.filter((name) => installed.has(name));
+        return {
+          ...collection,
+          installed_names: installedNames,
+          installed_count: installedNames.length,
+          fully_installed: resourceNames.length > 0 && installedNames.length === resourceNames.length,
+          partially_installed: installedNames.length > 0 && installedNames.length < resourceNames.length
+        };
+      }).filter((collection) => collection.installed_count > 0);
+    }
+
     function installedZimDescription(item) {
       const fromCatalog = currentContentCatalog && (currentContentCatalog.items || []).find((entry) => entry.name === item.name);
       if (fromCatalog) {
@@ -2440,6 +2518,21 @@
       if (downloadButton) {
         downloadButton.disabled = exceedsDisk;
       }
+    }
+
+    function pendingMapDownloadBytes() {
+      if (!currentCatalog || !pendingMapSelection.size) {
+        return 0;
+      }
+      const installed = installedMapNames(currentMaps);
+      const byName = new Map((currentCatalog.items || []).map((item) => [item.name, item]));
+      let total = 0;
+      selectedMapFilesFromRegions(pendingMapSelection, currentCatalog).forEach((name) => {
+        const item = byName.get(name);
+        if (!item || installed.has(name)) return;
+        total += Number(item.size_bytes || 0);
+      });
+      return total;
     }
 
     function renderMapsStorage(state, maps) {
@@ -3297,6 +3390,13 @@
 
     function renderContentState(content, note = "") {
       pendingCustomSelection = new Set(content.custom_selected_paths || []);
+      const mirrorOptions = content.zim_mirrors || [];
+      const mirrorSelect = document.getElementById("content-zim-mirror");
+      mirrorSelect.replaceChildren(...mirrorOptions.map(({ label, url }) => new Option(label, url)));
+      if (content.catalog_root && !mirrorOptions.some(({ url }) => url === content.catalog_root)) {
+        mirrorSelect.add(new Option("Configured mirror", content.catalog_root));
+      }
+      mirrorSelect.value = content.catalog_root || "";
       populateInstallTargetSelect("content-install-target", content.install_destinations || [], content.install_dir || "");
 
       setStatusChips("content-status", [
@@ -3333,6 +3433,7 @@
 
     function updateCustomLibraryVisibility(_enabled = true, running = false) {
       document.getElementById("content-install-target").disabled = running;
+      document.getElementById("content-zim-mirror").disabled = running;
       document.getElementById("zim-category-filter").disabled = running;
       document.getElementById("zim-catalog-filter").disabled = running;
       document.getElementById("refresh-zim-catalog-button").disabled = running;
@@ -3772,6 +3873,92 @@
       </label>`).join("") || "No map packages found on local storage.";
     }
 
+    function catalogWithCurrentLocalState(catalog) {
+      if (!catalog || !currentMaps) {
+        return catalog;
+      }
+
+      const invalidByName = new Map(
+        (currentMaps.invalid_files || []).map((item) => [item.name, item])
+      );
+      const validNames = new Set(currentMaps.available_files || []);
+      const installedNames = new Set([
+        ...validNames,
+        ...Array.from(invalidByName.keys())
+      ]);
+
+      return {
+        ...catalog,
+        items: (catalog.items || []).map((item) => {
+          const invalid = invalidByName.get(item.name);
+          return {
+            ...item,
+            installed: installedNames.has(item.name),
+            installed_valid: validNames.has(item.name),
+            installed_error: invalid ? invalid.error : null,
+            installed_size_label: invalid ? formatBytes(Number(invalid.size_bytes || 0)) : item.installed_size_label,
+            active: item.name === currentMaps.active_file
+          };
+        })
+      };
+    }
+
+    function renderCatalog(catalog) {
+      const effectiveCatalog = catalogWithCurrentLocalState(catalog);
+      const container = document.getElementById("maps-catalog-list");
+      if (!effectiveCatalog?.source) {
+        document.getElementById("maps-catalog-source").textContent = "Regional map catalog unavailable";
+        container.textContent = effectiveCatalog?.error || "The online map catalog is unavailable.";
+        return;
+      }
+      document.getElementById("maps-catalog-source").textContent =
+        effectiveCatalog.source.collections_url
+          ? `Catalog source: regional map catalog`
+          : `Catalog source: ${effectiveCatalog.source.owner}/${effectiveCatalog.source.repo}:${effectiveCatalog.source.subdir}`;
+
+      if (!effectiveCatalog.collections || !effectiveCatalog.collections.length) {
+        container.innerHTML = "No map regions were returned by the online map catalog.";
+        return;
+      }
+
+      const installedRegionsNow = installedMapRegions(currentMaps, effectiveCatalog).map((region) => region.slug);
+      container.innerHTML = [
+        {
+          slug: "all",
+          name: "All Regions",
+          description: "Download the full regional offline map collection.",
+          size_bytes: Number((effectiveCatalog.items || []).reduce((sum, item) => sum + Number(item.size_bytes || 0), 0)),
+          size_label: formatBytes(Number((effectiveCatalog.items || []).reduce((sum, item) => sum + Number(item.size_bytes || 0), 0))),
+          resource_count: (effectiveCatalog.items || []).length,
+          installed: installedRegionsNow.length === effectiveCatalog.collections.length && effectiveCatalog.collections.length > 0
+        },
+        ...effectiveCatalog.collections
+      ].map((item) => {
+        const checked = pendingMapSelection.has(item.slug) ? "checked" : "";
+        const details = [];
+        if (item.installed) details.push("installed");
+        if (item.resource_count) details.push(`${item.resource_count} maps`);
+        if (item.size_bytes) {
+          details.push(iconLabel("download", item.size_label || formatBytes(item.size_bytes)));
+        } else {
+          details.push("size unknown");
+        }
+        const escapedDetails = details.map((detail) =>
+          String(detail).includes("catalog-icon")
+            ? detail
+            : escapeHtml(detail)
+        ).join(" ");
+        const descriptionText = `<span class="zim-entry-desc">- ${escapeHtml(item.description || "Offline regional map package.")}${escapedDetails ? ` ${escapedDetails}` : ""}</span>`;
+        return `<label class="zim-entry">
+          <input type="checkbox" class="map-catalog-checkbox" value="${item.slug}" ${checked}>
+          <span class="zim-entry-body">
+            <span class="zim-entry-title">${escapeHtml(item.name)}</span>${descriptionText}
+          </span>
+        </label>`;
+      }).join("");
+      renderMapsStorage(currentState, currentMaps);
+    }
+
     function renderMapSyncState(state) {
       const countries = state.operation === "countries";
       const building = state.operation === "build";
@@ -3826,6 +4013,9 @@
           : mapSummaryText;
       }
       document.getElementById("maps-install-target").disabled = running;
+      document.getElementById("sync-maps-button").disabled = running || !currentCatalog;
+      document.getElementById("sync-maps-button").textContent = running ? "Updating..." : "Update Installed Maps";
+      document.querySelectorAll(".map-catalog-checkbox").forEach((box) => { box.disabled = running; });
       document.getElementById("remove-local-maps-button").disabled = running;
       document.getElementById("select-all-local-maps-button").disabled = running;
       document.getElementById("clear-local-maps-button").disabled = running;
@@ -4102,6 +4292,33 @@
       }
     }
 
+    async function refreshCatalog(forceRefresh = true) {
+      const button = document.getElementById("refresh-catalog-button");
+      button.disabled = true;
+      button.textContent = "Checking...";
+      try {
+        const { response, payload } = await fetchJsonWithTimeout(
+          forceRefresh ? "/api/maps/catalog?refresh=1" : "/api/maps/catalog",
+          {},
+          12000
+        );
+        if (!response.ok) {
+          throw new Error(payload.error || "Unable to load the map catalog");
+        }
+        if (!currentCatalog) {
+          pendingMapSelection = new Set(installedMapRegions(currentMaps, payload).map(({ slug }) => slug));
+        }
+        currentCatalog = payload;
+        renderCatalog(payload);
+        document.getElementById("sync-maps-button").disabled = mapJobRunning;
+      } catch (error) {
+        document.getElementById("maps-catalog-list").textContent = error.message;
+      } finally {
+        button.disabled = false;
+        button.textContent = "Check Online Catalog";
+      }
+    }
+
     let refreshedMapBuild = null;
     async function loadMapSyncState() {
       try {
@@ -4151,6 +4368,22 @@
         button.disabled = false;
         button.textContent = "Save Map Theme";
       }
+    }
+
+    function selectAllMaps() {
+      const checkboxes = Array.from(document.querySelectorAll(".map-catalog-checkbox"));
+      const allChecked = checkboxes.length > 0 && checkboxes.every((checkbox) => checkbox.checked);
+      checkboxes.forEach((checkbox) => {
+        checkbox.checked = !allChecked;
+        if (!allChecked) {
+          pendingMapSelection.add(checkbox.value);
+        } else {
+          pendingMapSelection.delete(checkbox.value);
+        }
+      });
+      normalizePendingMapSelection();
+      document.getElementById("select-all-maps-button").textContent = allChecked ? "SELECT ALL" : "CLEAR ALL";
+      renderMapsStorage(currentState, currentMaps);
     }
 
     function selectAllLocalMaps() {
@@ -4222,6 +4455,72 @@
       const button = document.getElementById(buttonId);
       const hidden = panel.classList.toggle("hidden");
       button.textContent = hidden ? showLabel : hideLabel;
+    }
+
+    async function saveZimMirror() {
+      const select = document.getElementById("content-zim-mirror");
+      const requested = select.value;
+      if (requested === currentContent?.catalog_root) return;
+      select.disabled = true;
+      try {
+        const { response, payload } = await fetchJsonWithTimeout("/api/content/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ zim_mirror: requested })
+        });
+        if (!response.ok) throw new Error(payload.error || "Unable to save the ZIM mirror.");
+        currentContent = payload;
+        currentContentCatalog = null;
+        renderContentState(payload, "ZIM mirror updated.");
+        await refreshZimCatalog(true);
+      } catch (error) {
+        select.value = currentContent?.catalog_root || "";
+        document.getElementById("content-library-note").textContent = error.message;
+      } finally {
+        select.disabled = false;
+      }
+    }
+
+    async function syncMapsSelection() {
+      const selectedRegions = Array.from(document.querySelectorAll(".map-catalog-checkbox:checked"))
+        .map((checkbox) => checkbox.value);
+      const selectedFiles = selectedMapFilesFromRegions(new Set(selectedRegions), currentCatalog);
+      const button = document.getElementById("sync-maps-button");
+
+      if (!currentCatalog) return;
+      const selected = new Set(selectedFiles);
+      const installed = installedMapNames(currentMaps);
+      const removed = currentCatalog.items.some((item) => installed.has(item.name) && !selected.has(item.name));
+      if (removed && !window.confirm("Remove unchecked prebuilt maps from local storage and install the selected packages?")) return;
+
+      const target = currentMaps?.install_destinations?.find(({ path }) => path === currentMaps.install_dir);
+      if (pendingMapDownloadBytes() > Number(target?.free_bytes ?? currentState?.storage?.disk?.free_bytes ?? 0)) {
+        window.alert("There is not enough free space for the selected map downloads. Choose fewer or smaller PMTiles packages before updating.");
+        return;
+      }
+
+      document.getElementById("maps-sync-status").textContent = "Map sync: starting";
+      button.disabled = true;
+      button.textContent = "Updating...";
+
+      try {
+        const { response, payload } = await fetchJsonWithTimeout("/api/maps/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ selected_files: selectedFiles })
+        }, 12000);
+        if (!response.ok) {
+          throw new Error(payload.error || "Unable to start map sync");
+        }
+        renderMapSyncState(payload);
+      } catch (error) {
+        document.getElementById("maps-sync-status").textContent = `Map sync: ${error.message}`;
+      } finally {
+        if (!document.getElementById("maps-sync-status").textContent.includes("running")) {
+          button.disabled = false;
+          button.textContent = "Update Installed Maps";
+        }
+      }
     }
 
     async function saveContentInstallTarget() {
@@ -4308,6 +4607,7 @@
     document.getElementById("clear-all-zims-button").addEventListener("click", clearAllCatalogZims);
     document.getElementById("refresh-zim-catalog-button").addEventListener("click", refreshZimCatalog);
     document.getElementById("download-selected-zims-button").addEventListener("click", downloadSelectedZims);
+    document.getElementById("content-zim-mirror").addEventListener("change", saveZimMirror);
     document.getElementById("content-install-target").addEventListener("change", saveContentInstallTarget);
     document.getElementById("toggle-add-content-button").addEventListener("click", () => {
       addMoreContentVisible = !addMoreContentVisible;
@@ -4375,9 +4675,44 @@
     });
     document.getElementById("save-map-button").addEventListener("click", saveMapSelection);
     document.getElementById("maps-install-target").addEventListener("change", saveMapsInstallTarget);
+    document.getElementById("select-all-maps-button").addEventListener("click", selectAllMaps);
     document.getElementById("select-all-local-maps-button").addEventListener("click", selectAllLocalMaps);
     document.getElementById("clear-local-maps-button").addEventListener("click", clearLocalMapsSelection);
     document.getElementById("remove-local-maps-button").addEventListener("click", removeSelectedLocalMaps);
+    document.getElementById("refresh-catalog-button").addEventListener("click", refreshCatalog);
+    document.getElementById("sync-maps-button").addEventListener("click", syncMapsSelection);
+    document.getElementById("maps-catalog-list").addEventListener("change", (event) => {
+      if (!event.target.classList.contains("map-catalog-checkbox")) {
+        return;
+      }
+      if (event.target.checked) {
+        if (event.target.value === "all") {
+          pendingMapSelection = new Set(["all"]);
+          document.querySelectorAll(".map-catalog-checkbox").forEach((checkbox) => {
+            checkbox.checked = checkbox.value === "all";
+          });
+        } else {
+          pendingMapSelection.delete("all");
+          pendingMapSelection.add(event.target.value);
+          const allBox = document.querySelector('.map-catalog-checkbox[value="all"]');
+          if (allBox) allBox.checked = false;
+        }
+      } else if (event.target.value === "all") {
+        pendingMapSelection.delete("all");
+      } else if (pendingMapSelection.has("all")) {
+        pendingMapSelection = new Set(
+          Array.from(document.querySelectorAll(".map-catalog-checkbox:checked"))
+            .map((checkbox) => checkbox.value)
+            .filter((value) => value !== "all" && value !== event.target.value)
+        );
+        const allBox = document.querySelector('.map-catalog-checkbox[value="all"]');
+        if (allBox) allBox.checked = false;
+      } else {
+        pendingMapSelection.delete(event.target.value);
+      }
+      normalizePendingMapSelection();
+      renderMapsStorage(currentState, currentMaps);
+    });
     document.getElementById("restart-system-button").addEventListener("click", () => requestPowerAction("restart"));
     document.getElementById("shutdown-system-button").addEventListener("click", () => requestPowerAction("shutdown"));
     document.getElementById("toggle-apply-log-button").addEventListener("click", () => {
