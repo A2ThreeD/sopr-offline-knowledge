@@ -1245,7 +1245,7 @@ class PortalState:
         return parser.links
 
     def zim_mirrors(self) -> list[dict]:
-        return read_json(self.repo_root / "catalog" / "zim-mirrors.json", [])
+        return read_json(self.repo_root / "catalog" / "zim-mirrors.json", {}).get("mirrors", [])
 
     def validate_zim_mirror(self, mirror: object) -> str:
         if not isinstance(mirror, str) or mirror not in {item["url"] for item in self.zim_mirrors()}:

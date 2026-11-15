@@ -1,5 +1,5 @@
-[
+{"mirrors": [
   {"id": "debian", "label": "Debian (default)", "url": "https://cdimage.debian.org/mirror/kiwix.org/zim/"},
   {"id": "kiwix", "label": "Kiwix (official)", "url": "https://lb.download.kiwix.org/zim/"},
   {"id": "dotsrc", "label": "Dotsrc (Denmark)", "url": "https://mirrors.dotsrc.org/kiwix/zim/"}
-]
+]}

@@ -14,7 +14,7 @@ from pathlib import Path
 
 MIRROR = "https://cdimage.debian.org/mirror/kiwix.org/zim/"
 MIRROR_OPTIONS = Path(__file__).resolve().parents[1] / "catalog" / "zim-mirrors.json"
-MIRROR_ROOTS = ("https://download.kiwix.org/zim/", *(item["url"] for item in json.loads(MIRROR_OPTIONS.read_text())))
+MIRROR_ROOTS = ("https://download.kiwix.org/zim/", *(item["url"] for item in json.loads(MIRROR_OPTIONS.read_text())["mirrors"]))
 
 
 def download(url: str, target: Path, index: int, total: int) -> bool:
