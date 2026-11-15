@@ -733,7 +733,9 @@
         mapRegionField.classList.toggle("hidden", preferredBrowseMode === "individual");
         mapPackageField.classList.toggle("hidden", preferredBrowseMode === "region");
         populateRegionControl(installedMapEntries, state.active_file);
-        populateMapPackageControl(installedMapEntries, state.active_file);
+        if (preferredBrowseMode === "individual") {
+          populateMapPackageControl(installedMapEntries, state.active_file);
+        }
       }
       setMapMetaChips([
         { label: "Archive", value: state.active_valid ? "Valid" : (state.active_exists ? "Invalid" : "Missing"), tone: state.active_valid ? "ok" : (state.active_exists ? "error" : "warn") },
@@ -771,39 +773,45 @@
       return true;
     }
 
-    async function centerMapOnActiveArchive(pmtilesSource, config) {
-      if (!mapInstance || !pmtilesSource || typeof pmtilesSource.getHeader !== "function") {
-        return;
+    function archiveBounds(filename, header) {
+      if (!isUsableBounds(header)) return null;
+      const { minLon, minLat, maxLon, maxLat } = header;
+      // Alaska spans both sides of the date line. PMTiles stores a nearly
+      // world-wide bounding box for this state, so fit the Alaskan longitudes.
+      if (/^(state-|country-us-)?alaska(?:_\d{4}-\d{2})?\.pmtiles$/.test(filename) && maxLon - minLon > 300) {
+        return [-190, minLat, -129, maxLat];
       }
-      try {
-        const header = await pmtilesSource.getHeader();
-        if (!isUsableBounds(header)) {
-          return;
+      return [minLon, minLat, maxLon, maxLat];
+    }
+
+    function combinedArchiveBounds(archives) {
+      const bounds = archives.map(({ filename, header }) => archiveBounds(filename, header)).filter(Boolean);
+      if (!bounds.length) return null;
+      const south = Math.min(...bounds.map((item) => item[1]));
+      const north = Math.max(...bounds.map((item) => item[3]));
+      // Try each western edge as the start of the longitude interval and
+      // choose the shortest interval that contains all the installed coverage.
+      let west = -180;
+      let width = 360;
+      for (const [origin] of bounds) {
+        const span = Math.max(...bounds.map(([left, , right]) =>
+          ((left - origin) % 360 + 360) % 360 + right - left
+        ));
+        if (span < width) {
+          west = origin;
+          width = span;
         }
-        if (/^(custom|country)-/.test(config.pmtilesFile) && header.maxZoom > config.maxZoom) {
-          mapInstance.setMaxZoom(header.maxZoom);
-          zoomInput.max = String(header.maxZoom);
-        }
-        mapInstance.fitBounds(
-          [
-            [header.minLon, header.minLat],
-            [header.maxLon, header.maxLat]
-          ],
-          {
-            padding: { top: 36, right: 36, bottom: 36, left: 36 },
-            maxZoom: Math.max(config.minZoom || 2, Math.min(config.maxZoom || 14, 10)),
-            duration: 0
-          }
-        );
-        const center = mapInstance.getCenter();
-        const zoom = mapInstance.getZoom();
-        latInput.value = center.lat.toFixed(4);
-        lonInput.value = center.lng.toFixed(4);
-        zoomInput.value = String(Math.round(zoom));
-        zoomValue.textContent = String(Math.round(zoom));
-      } catch (_error) {
-        // Fall back to configured defaults if PMTiles header bounds are unavailable.
       }
+      return [[west, south], [west + width, north]];
+    }
+
+    function updateCameraControls(map) {
+      const center = map.getCenter();
+      const zoom = Math.round(map.getZoom());
+      latInput.value = center.lat.toFixed(4);
+      lonInput.value = center.wrap().lng.toFixed(4);
+      zoomInput.value = String(zoom);
+      zoomValue.textContent = String(zoom);
     }
 
     async function buildMap() {
@@ -814,111 +822,108 @@
         const config = await loadConfig();
         currentConfigSignature = configSignature(config);
         populateFallbackControls(config);
+        saveMapSettingsButton.disabled = true;
 
-        latInput.value = config.defaultLat;
-        lonInput.value = config.defaultLon;
-        zoomInput.min = String(config.minZoom);
-        zoomInput.max = String(config.maxZoom);
-        zoomInput.value = config.defaultZoom;
-        zoomValue.textContent = String(config.defaultZoom);
-
-        if (mapInstance) {
-          mapInstance.remove();
-          mapInstance = null;
+        const state = await loadMapState().catch(() => null);
+        installedMapEntries = state ? buildInstalledMapEntries(state) : [];
+        if (preferredMapRegion !== "all" && !installedMapEntries.some(({ regionSlug }) => regionSlug === preferredMapRegion)) {
+          preferredMapRegion = "all";
         }
-
+        const browsingRegion = preferredBrowseMode === "region" && installedMapEntries.length > 0;
+        const filenames = browsingRegion
+          ? installedMapEntries.filter(({ regionSlug }) => preferredMapRegion === "all" || regionSlug === preferredMapRegion)
+            .map(({ filename }) => filename)
+          : [config.pmtilesFile];
         const protocol = new pmtiles.Protocol();
         maplibregl.addProtocol("pmtiles", protocol.tile);
-        const pmtilesSource = new pmtiles.PMTiles(window.location.origin + config.pmtilesUrl);
-        protocol.add(pmtilesSource);
 
-        mapInstance = new maplibregl.Map({
+        const results = await Promise.allSettled(filenames.map(async (filename) => {
+          const path = filename === config.pmtilesFile ? config.pmtilesUrl : `/pmtiles/${encodeURIComponent(filename)}`;
+          const url = window.location.origin + path;
+          const archive = new pmtiles.PMTiles(url);
+          const header = await archive.getHeader();
+          protocol.add(archive);
+          return { filename, url, header };
+        }));
+        const archives = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+        if (state) populateMapControls(state, config);
+        if (!archives.length) {
+          throw new Error("No readable offline map archives were found for this selection.");
+        }
+
+        const minZoom = browsingRegion ? 0 : config.minZoom;
+        const maxZoom = Math.max(config.maxZoom, ...archives.map(({ header }) => header.maxZoom));
+        zoomInput.min = String(minZoom);
+        zoomInput.max = String(maxZoom);
+
+        const sources = Object.fromEntries(archives.map(({ url }, index) => [
+          `archive-${index}`, { type: "vector", url: `pmtiles://${url}`, attribution: "Protomaps © OpenStreetMap" }
+        ]));
+        const sourceIds = Object.keys(sources);
+        const layers = basemaps.layers(sourceIds[0], basemaps.namedFlavor(config.flavor), { lang: config.language })
+          .flatMap((layer) => layer.source
+            ? sourceIds.map((source) => ({ ...layer, id: `${layer.id}-${source}`, source }))
+            : [layer]);
+
+        if (mapInstance) mapInstance.remove();
+        const map = new maplibregl.Map({
           container: "map",
           center: [config.defaultLon, config.defaultLat],
           zoom: config.defaultZoom,
-          minZoom: config.minZoom,
-          maxZoom: config.maxZoom,
+          minZoom,
+          maxZoom,
           attributionControl: true,
           style: {
             version: 8,
             glyphs: window.location.origin + config.glyphsUrl,
             sprite: window.location.origin + config.spriteBaseUrl,
-            sources: {
-              protomaps: {
-                type: "vector",
-                url: `pmtiles://${window.location.origin}${config.pmtilesUrl}`,
-                attribution: 'Protomaps © OpenStreetMap'
-              }
-            },
-            layers: basemaps.layers(
-              "protomaps",
-              basemaps.namedFlavor(config.flavor),
-              { lang: config.language }
-            )
+            sources,
+            layers
           }
         });
+        mapInstance = map;
+        map.addControl(new maplibregl.NavigationControl(), "top-right");
+        const bounds = combinedArchiveBounds(archives);
+        if (bounds) {
+          map.fitBounds(bounds, { padding: 32, maxZoom: Math.min(maxZoom, 10), duration: 0 });
+        }
+        updateCameraControls(map);
+        map.on("moveend", () => updateCameraControls(map));
 
-        mapInstance.addControl(new maplibregl.NavigationControl(), "top-right");
-        mapInstance.once("idle", () => {
-          clearMapStatus();
-          mapReloadInProgress = false;
+        if (browsingRegion) {
+          const missing = filenames.length - archives.length;
+          setMapMetaChips([
+            { label: "Archives", value: `${archives.length}/${filenames.length}`, tone: missing ? "warn" : "ok" },
+            { label: "Theme", value: config.flavor, tone: "muted" },
+            { label: "Language", value: config.language, tone: "muted" }
+          ]);
+          if (missing) showMapStatus(`${missing} regional map archive(s) could not be opened.`);
+        }
+
+        map.on("error", (event) => {
+          const message = event.error?.message || "MapLibre could not render the selected map.";
+          showMapStatus(`Map error: ${message}`);
         });
-
-        mapInstance.once("load", () => {
-          centerMapOnActiveArchive(pmtilesSource, config);
-        });
-
-        loadMapState()
-          .then((state) => {
-            installedMapEntries = buildInstalledMapEntries(state);
-            populateMapControls(state, config);
-            if (!state.active_valid) {
-              const problem = state.active_error || "Configured archive is missing or invalid.";
-              showMapStatus(`Map archive issue: ${problem}`);
-              mapBanner.textContent = `Map archive issue: ${problem}`;
-              mapBanner.classList.remove("hidden");
-            } else {
-              clearMapStatus();
-            }
-          })
-          .catch((error) => {
-            const delayed = error && error.name === "AbortError";
-            setMapMetaChips([
-              { label: "Archive", value: delayed ? "Delayed" : "Checking", tone: delayed ? "warn" : "warn" },
-              { label: "Theme", value: config.flavor || "dark", tone: "muted" },
-              { label: "Language", value: config.language || "en", tone: "muted" }
-            ]);
-          });
-
-        fetch(config.pmtilesUrl, { method: "HEAD", cache: "no-store" })
-          .then((response) => {
-            if (!response.ok) {
-              throw new Error(`archive returned ${response.status}`);
-            }
-          })
-          .catch(() => {
-            showMapStatus("Offline PMTiles archive not found yet. Add a local archive to the configured PMTiles path.");
-            mapBanner.textContent = "Offline PMTiles archive not found yet. Add a local archive to the configured PMTiles path.";
-            mapBanner.classList.remove("hidden");
-            mapReloadInProgress = false;
-          });
-
-        mapInstance.on("error", (event) => {
-          const errorMessage = event && event.error && event.error.message
-            ? event.error.message
-            : "MapLibre could not render the active PMTiles archive.";
-          showMapStatus(`Map error: ${errorMessage}`);
-          mapBanner.textContent = `Map error: ${errorMessage}`;
-          mapBanner.classList.remove("hidden");
-          mapReloadInProgress = false;
-        });
-      } catch (error) {
+      } finally {
         mapReloadInProgress = false;
-        throw error;
+        saveMapSettingsButton.disabled = false;
+      }
+    }
+
+    async function showSelectedRegion() {
+      if (mapReloadInProgress) return;
+      try {
+        await buildMap();
+      } catch (error) {
+        showMapStatus(error.message);
       }
     }
 
     async function saveMapSettings() {
+      if (preferredBrowseMode === "region") {
+        await showSelectedRegion();
+        return;
+      }
       const filename = mapPackageSelect.value;
       if (!filename) {
         showMapStatus("Choose a valid PMTiles archive before applying map settings.");
@@ -990,16 +995,16 @@
 
     mapRegionSelect.addEventListener("change", () => {
       preferredMapRegion = mapRegionSelect.value || "all";
-      populateMapPackageControl(installedMapEntries, mapPackageSelect.value);
       saveStoredMapSelection();
+      showSelectedRegion();
     });
 
     mapBrowseModeSelect.addEventListener("change", () => {
       preferredBrowseMode = mapBrowseModeSelect.value === "individual" ? "individual" : "region";
       mapRegionField.classList.toggle("hidden", preferredBrowseMode === "individual");
       mapPackageField.classList.toggle("hidden", preferredBrowseMode === "region");
-      populateMapPackageControl(installedMapEntries, mapPackageSelect.value);
       saveStoredMapSelection();
+      showSelectedRegion();
     });
 
     mapPackageSelect.addEventListener("change", () => {
