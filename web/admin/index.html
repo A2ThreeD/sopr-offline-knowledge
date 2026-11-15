@@ -1,18 +1,13 @@
 <!DOCTYPE html>
+<!-- SOPR Offline Knowledge
+     Copyright (c) 2026 Aaron Morris / A2ThreeD.
+     Offline portal interface. -->
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Settings</title>
   <style>
-    @font-face {
-      font-family: "Michroma Local";
-      src: url("/fonts/Michroma-Regular.ttf") format("truetype");
-      font-style: normal;
-      font-weight: 400;
-      font-display: swap;
-    }
-
     :root {
       --bg: #07111f;
       --panel: #102238;
@@ -23,8 +18,8 @@
       --border: rgba(255, 255, 255, 0.88);
       --scrollbar-thumb: rgba(255, 255, 255, 0.96);
       --scrollbar-track: rgba(7, 14, 26, 0.62);
-      --ui-display: "Michroma Local", "Michroma", "Aldrich", "Orbitron", "Eurostile", "Bank Gothic", "Rajdhani", "Cascadia Mono", "Consolas", monospace;
-      --ui-body: "Michroma Local", "Michroma", "Aldrich", "Cascadia Mono", "Consolas", monospace;
+      --ui-display: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      --ui-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
     }
 
     * {
@@ -4006,8 +4001,10 @@
           renderZimCatalog(currentContentCatalog);
         }
         renderApplyState(settingsPayload.apply);
-        document.getElementById("zim-catalog-note").textContent =
-          "ZIM download started. Watch Content Actions for progress.";
+        const skipped = settingsPayload.skipped_paths || [];
+        document.getElementById("zim-catalog-note").textContent = skipped.length
+          ? `Download started for available files. Removed unavailable selections: ${skipped.join(", ")}.`
+          : "ZIM download started. Watch Content Actions for progress.";
       } catch (error) {
         document.getElementById("zim-catalog-note").textContent = error.message;
       } finally {

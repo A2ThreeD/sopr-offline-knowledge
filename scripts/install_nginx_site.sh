@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SOPR Offline Knowledge
+# Copyright (c) 2026 Aaron Morris / A2ThreeD.
+# Install Nginx routes and the SOPR Kiwix reader asset.
 
 set -euo pipefail
 
@@ -21,6 +24,9 @@ fi
 # shellcheck source=./load_env.sh
 source "$REPO_ROOT/scripts/load_env.sh"
 load_sopr_env "$ENV_FILE"
+
+install -d -m 0755 "$PREPMASTER_WEB_ROOT/kiwix-skin"
+install -m 0644 "$REPO_ROOT/web/kiwix-skin/viewer.js" "$PREPMASTER_WEB_ROOT/kiwix-skin/viewer.js"
 
 cat > /etc/nginx/sites-available/prepmaster.conf <<EOF
 server {

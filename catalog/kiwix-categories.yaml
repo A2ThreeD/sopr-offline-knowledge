@@ -46,6 +46,12 @@ categories:
       description: NIH's consumer health encyclopedia - diseases, conditions, drugs, supplements
       url: https://ftp.uni-erlangen.de/kiwix/zim/zimit/medlineplus.gov_en_all_2025-01.zim
       size_mb: 1800
+    - id: wikipedia_en_medicine_nopic
+      version: 2026-10
+      title: Wikipedia Medicine (No Images)
+      description: Dedicated English Wikipedia medical reference without images
+      url: https://cdimage.debian.org/mirror/kiwix.org/zim/wikipedia/wikipedia_en_medicine_nopic_2026-10.zim
+      size_mb: 1024
   - name: Comprehensive
     slug: medicine-comprehensive
     description: Professional-level medical references and textbooks. Includes everything in Standard.
@@ -103,6 +109,42 @@ categories:
       description: Comprehensive urban emergency preparedness video series
       url: https://ftp.uni-erlangen.de/kiwix/zim/videos/urban-prepper_en_all_2026-08.zim
       size_mb: 2240
+    - id: zimgit-post-disaster_en
+      version: 2024-05
+      title: Post-Disaster Library
+      description: Offline preparedness and recovery references
+      url: https://cdimage.debian.org/mirror/kiwix.org/zim/other/zimgit-post-disaster_en_2024-05.zim
+      size_mb: 615
+    - id: appropedia_en_all_maxi
+      version: 2026-02
+      title: Appropedia
+      description: Appropriate technology and sustainable living guides
+      url: https://cdimage.debian.org/mirror/kiwix.org/zim/other/appropedia_en_all_maxi_2026-02.zim
+      size_mb: 555
+    - id: sustainability.stackexchange.com_en_all
+      version: 2026-10
+      title: Sustainable Living Q&A
+      description: Practical questions and answers on sustainable living
+      url: https://cdimage.debian.org/mirror/kiwix.org/zim/stack_exchange/sustainability.stackexchange.com_en_all_2026-10.zim
+      size_mb: 26
+    - id: 100r.co_en_all
+      version: 2026-08
+      title: Hundred Rabbits
+      description: Off-grid field notes on solar power, water, and repair
+      url: https://cdimage.debian.org/mirror/kiwix.org/zim/zimit/100r.co_en_all_2026-08.zim
+      size_mb: 169
+    - id: cd3wdproject.org_en_all
+      version: 2026-11
+      title: CD3WD Appropriate Technology Library
+      description: Practical appropriate technology guides including rural energy and electricity
+      url: https://cdimage.debian.org/mirror/kiwix.org/zim/zimit/cd3wdproject.org_en_all_2026-11.zim
+      size_mb: 546
+    - id: solar.lowtechmagazine.com_mul_all
+      version: 2025-01
+      title: Low-tech Magazine
+      description: Articles on off-grid solar, energy storage, and low-tech renewable energy
+      url: https://cdimage.debian.org/mirror/kiwix.org/zim/zimit/solar.lowtechmagazine.com_mul_all_2025-01.zim
+      size_mb: 668
   - name: Comprehensive
     slug: survival-comprehensive
     description: Complete prepper library with food storage strategies and classic military strategy. Includes everything in Standard.
@@ -403,6 +445,12 @@ categories:
       description: Git version control reference
       url: https://ftp.uni-erlangen.de/kiwix/zim/devdocs/devdocs_en_git_2026-10.zim
       size_mb: 1
+    - id: electronics.stackexchange.com_en_all
+      version: 2026-10
+      title: Electronics Q&A
+      description: Circuit design, power supplies, components, and electrical engineering
+      url: https://cdimage.debian.org/mirror/kiwix.org/zim/stack_exchange/electronics.stackexchange.com_en_all_2026-10.zim
+      size_mb: 4096
   - name: Comprehensive
     slug: computing-comprehensive
     description: Deep electronics knowledge and extensive Q&A for hardware projects. Includes Standard.

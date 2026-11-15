@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SOPR Offline Knowledge
+# Copyright (c) 2026 Aaron Morris / A2ThreeD.
+# Install the Kiwix service and its runtime dependencies.
 
 set -euo pipefail
 
@@ -29,6 +32,8 @@ install -d -m 0755 "$(dirname "$KIWIX_LIBRARY_XML")"
 install -d -m 0755 "$PREPMASTER_ROOT/app"
 install -d -m 0755 "$PREPMASTER_WEB_ROOT/kiwix-placeholder"
 install -m 0755 "$REPO_ROOT/scripts/run_kiwix_service.sh" "$PREPMASTER_ROOT/app/run_kiwix_service.sh"
+install -d -m 0755 "$PREPMASTER_ROOT/scripts"
+install -m 0644 "$REPO_ROOT/scripts/load_env.sh" "$PREPMASTER_ROOT/scripts/load_env.sh"
 install -m 0644 "$REPO_ROOT/web/kiwix-placeholder/index.html" "$PREPMASTER_WEB_ROOT/kiwix-placeholder/index.html"
 
 cat > /etc/systemd/system/sopr-kiwix.service <<EOF

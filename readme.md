@@ -143,7 +143,7 @@ After the quick-test system is working, edit `config/sopr.env`, change `SOPR_ZIM
 sudo ./scripts/download_kiwix_zims.sh
 ```
 
-The ZIM library is stored at `/library/zims/content`. Large libraries can take considerable time and storage; keep the Pi powered and connected to the network until the download finishes.
+The ZIM library is stored at `/library/zims/content`. Large libraries can take considerable time and storage; keep the Pi powered and connected to the network until the download finishes. If a download fails, SOPR reports the failed URL, continues with the remaining content, and continues the installation. Run the download again to retry; incomplete downloads are kept in `.sopr-download-tmp` in the destination directory. Existing ZIM files remain available during a refresh, which downloads a fresh copy before replacing them and therefore requires additional time and free space.
 
 ### OS-only preparation
 
@@ -157,24 +157,26 @@ sudo ./scripts/bootstrap_pi.sh
 
 - The installer now assumes a custom stack with no IIAB dependency.
 - `catalog/kiwix-categories.yaml` is the source of truth for curated ZIM selection.
-- The generated manifest in `config/kiwix-zim-urls.txt` is built from that catalog JSON using `PREPMASTER_ZIM_PROFILE`.
+- The generated manifest in `config/kiwix-zim-urls.txt` is built from that YAML catalog using `PREPMASTER_ZIM_PROFILE`.
 - The selected Wikipedia variant is controlled by `PREPMASTER_WIKIPEDIA_OPTION` and sourced from `catalog/wikipedia.yaml`.
-- Supported profiles are `essential`, `standard`, and `comprehensive`.
+- Supported profiles are `essential`, `standard`, and `comprehensive`. Standard adds Wikipedia Medicine without images, Appropedia, Post-Disaster Library, Sustainable Living Q&A, Hundred Rabbits, CD3WD, Low-tech Magazine, and Electronics Q&A. Comprehensive inherits those titles.
+- **Settings → Content → Check Online Catalog** browses the Debian Kiwix mirror by default. The first refresh runs in the background. **Download Selected ZIMs** queues available selections and reports unavailable ones when the catalog is current.
+- The home page is a vertical stack of cards. Project Gutenberg Library opens its Kiwix collection, and Medical & First Aid, Food and Water, Survival & Shelter, Repair, Communication, and Power and Energy open topic filters. Settings is the last card. Library rebuilds refresh the SOPR topic tags.
 - Set `SOPR_ZIM_MODE=quick-test` if you want a small validation download before pulling the full content set.
 - The main page is now intended to be a first-start configuration screen with base install selected by default.
 - The main page now switches automatically between first-start setup mode and the normal dashboard based on saved setup state.
 - The setup page can now save preferences and trigger the backend apply workflow directly from the browser.
-- Kiwix now runs on a dedicated port, and the dashboard/admin views expose the real Kiwix target URL.
+- Kiwix runs on a dedicated local port behind the main site's Nginx proxy.
 - If no Kiwix library exists yet, the dedicated Kiwix port serves a placeholder page instead of crash-looping.
 - `/maps` now expects a local PMTiles archive under the configured PMTiles root and renders it through MapLibre instead of a raster `z/x/y.png` tile tree.
 - Optional education add-ons are tracked separately: `Kolibri` as a modern add-on, and `KA Lite` as a legacy add-on.
 - `Kolibri` now has install automation in the repo. `KA Lite` requires an explicit legacy override and currently records the request rather than forcing a risky unattended install on modern Raspberry Pi OS.
 - Wireless AP mode can be enabled through `config/sopr.env` and applied by the installer or `scripts/configure_access_point.sh`.
-- The installer now provisions `kiwix-serve`, the portal API, and an Nginx site so `/`, `/maps`, `/admin`, and `/api` are served on the main site, while `/kiwix` redirects the browser to the dedicated Kiwix port.
-- The current UI typography now self-hosts `Michroma` from `web/fonts/Michroma-Regular.ttf` under the SIL Open Font License. The main display stack is `"Michroma Local", "Michroma", "OCR A Std", "OCR A Extended", "Aldrich", "Eurostile", "Bank Gothic", "Rajdhani", "Cascadia Mono", "Consolas", monospace`, and the body stack is `"Michroma Local", "Michroma", "OCR A Std", "OCR A Extended", "Aldrich", "Cascadia Mono", "Consolas", monospace`.
+- The installer now provisions `kiwix-serve`, the portal API, and an Nginx site so `/`, `/maps`, `/admin`, and `/api` are served on the main site, and Nginx proxies `/kiwix/` to the local Kiwix service.
+- The interface uses the device's standard system font.
 - Scrollable panels use white scrollbars on a dark track as a shared SOPR design rule. New scrollable boxes should keep that treatment for consistency.
 - User-facing UI should describe upstream sources in generic terms like `regional map catalog` or `offline map packages` rather than adopting another project's branding as a primary label. Source attribution can still live in documentation or secondary status text when needed.
 
 ## Validation
 
-Use [docs/release-checklist.md](/home/prepper/sopr/docs/release-checklist.md) when validating a fresh SOPR install or preparing a new release.
+Use [release checklist](docs/release-checklist.md) when validating a fresh SOPR install or preparing a new release.

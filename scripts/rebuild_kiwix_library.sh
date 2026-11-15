@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SOPR Offline Knowledge
+# Copyright (c) 2026 Aaron Morris / A2ThreeD.
+# Rebuild the local Kiwix library index.
 
 set -euo pipefail
 
@@ -41,5 +44,7 @@ for zim in "${zims[@]}"; do
   echo "Adding to library: $zim"
   kiwix-manage "$KIWIX_LIBRARY_XML" add "$zim"
 done
+
+python3 "$REPO_ROOT/scripts/tag_kiwix_library.py" "$KIWIX_LIBRARY_XML"
 
 echo "Kiwix library rebuilt at $KIWIX_LIBRARY_XML"

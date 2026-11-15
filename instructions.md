@@ -11,7 +11,7 @@
 - They should have a good organized sturction for information related to suvival.
 - In the event of a major emergency, this system will be used to get information on survival, medical, and general knowledge
 - The top box should say "SOPR Emergency Knowledge Hub", with a brief overvia of the different core categories.
-- Core categories are Quick Access, Critical, Sustainment, Rebuild, and System Tools
+- Use stacked dashboard cards for Kiwix, Project Gutenberg, Offline Maps, Medical & First Aid, Food and Water, Survival & Shelter, Repair, Communication, Power and Energy, and Education & Skills. Put Settings last.
 - Kiwix Full Library button at the top of the page as the main reference in the Quick Access section path is /kiwix
 - Button on the main page to reach the Admin portal of the site located in the relative path /admin
 - Button for the offline maps in the relative path /maps
@@ -53,8 +53,7 @@
  - ZIM files for the Kiwix server are stored in /library/zims/content
  - A script in the home directory on this image contains a script named download_kiwix_zims.sh that has a curated list of the ZIM files needed
  - The curated list is compiled from `catalog/kiwix-categories.yaml`.
- - Use the curated catalog JSON to build out the download_kiwix_zims.sh script. That script should be a shell script that uses wget to download a zim file if it's newer or not present to the /library/zims/content folder.  Example line:
-    sudo wget -N -c "https://download.kiwix.org/zim/other/zimgit-medicine_en_2024-08.zim"
+ - Generate curated manifests from `catalog/kiwix-categories.yaml`. Use `scripts/download_kiwix_zims.sh` to stage resumable downloads and rebuild the Kiwix library. The online catalog uses the Debian Kiwix mirror by default.
 
 ## Current Categories (Completed)
 - [x] Medicine - Medical references, first aid, emergency care

@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- SOPR Offline Knowledge
+     Copyright (c) 2026 Aaron Morris / A2ThreeD.
+     Offline portal interface. -->
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -6,14 +9,6 @@
   <title>SOPR Offline Maps</title>
   <link rel="stylesheet" href="/maps/vendor/maplibre-gl/maplibre-gl.css">
   <style>
-    @font-face {
-      font-family: "Michroma Local";
-      src: url("/fonts/Michroma-Regular.ttf") format("truetype");
-      font-style: normal;
-      font-weight: 400;
-      font-display: swap;
-    }
-
     :root {
       --bg: #07111f;
       --panel: rgba(16, 34, 56, 0.9);
@@ -25,8 +20,8 @@
       --scrollbar-thumb: rgba(255, 255, 255, 0.96);
       --scrollbar-track: rgba(7, 14, 26, 0.62);
       --shadow: 0 22px 54px rgba(0, 0, 0, 0.34);
-      --ui-display: "Michroma Local", "Michroma", "Aldrich", "Orbitron", "Eurostile", "Bank Gothic", "Rajdhani", "Cascadia Mono", "Consolas", monospace;
-      --ui-body: "Michroma Local", "Michroma", "Aldrich", "Cascadia Mono", "Consolas", monospace;
+      --ui-display: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      --ui-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
     }
 
     * {

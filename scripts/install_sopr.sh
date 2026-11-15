@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SOPR Offline Knowledge
+# Copyright (c) 2026 Aaron Morris / A2ThreeD.
+# Install the SOPR offline knowledge stack and web assets.
 
 set -euo pipefail
 
@@ -36,9 +39,7 @@ install -d -m 0755 "$PREPMASTER_WEB_ROOT"
 install -d -m 0755 "$PREPMASTER_WEB_ROOT/images"
 install -m 0644 "$REPO_ROOT/web/index.html" "$PREPMASTER_WEB_ROOT/index.html"
 install -m 0644 "$REPO_ROOT/index.html.framework" "$PREPMASTER_WEB_ROOT/index.html.framework"
-if [[ -f "$REPO_ROOT/images/heroimage.png" ]]; then
-  install -m 0644 "$REPO_ROOT/images/heroimage.png" "$PREPMASTER_WEB_ROOT/images/heroimage.png"
-fi
+install -m 0644 "$REPO_ROOT/images/sopr.png" "$PREPMASTER_WEB_ROOT/images/sopr.png"
 
 echo "Installing custom stack placeholders..."
 install -d -m 0755 "$PREPMASTER_ADMIN_ROOT"

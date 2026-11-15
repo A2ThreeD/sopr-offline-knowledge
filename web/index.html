@@ -1,18 +1,13 @@
 <!DOCTYPE html>
+<!-- SOPR Offline Knowledge
+     Copyright (c) 2026 Aaron Morris / A2ThreeD.
+     Offline portal interface. -->
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SOPR</title>
   <style>
-    @font-face {
-      font-family: "Michroma Local";
-      src: url("/fonts/Michroma-Regular.ttf") format("truetype");
-      font-style: normal;
-      font-weight: 400;
-      font-display: swap;
-    }
-
     :root {
       --bg: #07111f;
       --bg-deep: #030916;
@@ -29,8 +24,8 @@
       --scrollbar-track: rgba(7, 14, 26, 0.62);
       --shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
       --ok: #a9d4ba;
-      --ui-display: "Michroma Local", "Michroma", "OCR A Std", "OCR A Extended", "Aldrich", "Eurostile", "Bank Gothic", "Rajdhani", "Cascadia Mono", "Consolas", monospace;
-      --ui-body: "Michroma Local", "Michroma", "OCR A Std", "OCR A Extended", "Aldrich", "Cascadia Mono", "Consolas", monospace;
+      --ui-display: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      --ui-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
     }
 
     * {
@@ -874,8 +869,7 @@
       color: #ffd1d1;
     }
 
-    .review-grid,
-    .dashboard-grid {
+    .review-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 16px;
@@ -895,12 +889,6 @@
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
     }
 
-    .dashboard-tile {
-      display: flex;
-      flex-direction: column;
-      min-height: 100%;
-    }
-
     .review-card h3,
     .dashboard-tile h2 {
       margin-bottom: 10px;
@@ -910,11 +898,6 @@
     .review-card p,
     .dashboard-tile p {
       margin: 0;
-    }
-
-    .dashboard-tile .actions {
-      margin-top: auto;
-      padding-top: 14px;
     }
 
     .dashboard-tile.disabled {
@@ -1087,14 +1070,40 @@
     }
 
     .dashboard-grid {
-      width: min(1120px, 100%);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 12px;
+      width: min(960px, 100%);
       margin: 0 auto;
     }
 
     .dashboard-tile {
-      position: relative;
-      min-height: 220px;
-      overflow: hidden;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-areas: "icon copy action";
+      align-items: center;
+      gap: 16px;
+    }
+
+    .dashboard-tile .dashboard-icon {
+      grid-area: icon;
+    }
+
+    .dashboard-copy {
+      grid-area: copy;
+      min-width: 0;
+    }
+
+    .dashboard-tile .actions {
+      grid-area: action;
+      margin: 0;
+    }
+
+    @media (max-width: 640px) {
+      .dashboard-tile {
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-areas: "icon copy" "action action";
+      }
     }
 
     .dashboard-icon {
@@ -1105,7 +1114,6 @@
       display: grid;
       place-items: center;
       font-size: 24px;
-      margin-bottom: 18px;
       color: var(--accent-strong);
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
     }
@@ -1136,8 +1144,7 @@
       .options-grid.three-up,
       .content-selector-shell,
       .storage-legend,
-      .review-grid,
-      .dashboard-grid {
+      .review-grid {
         grid-template-columns: 1fr;
       }
 
@@ -1176,8 +1183,7 @@
       }
 
       .option-card,
-      .option-card.network-card,
-      .dashboard-tile {
+      .option-card.network-card {
         min-height: auto;
       }
 
@@ -1474,61 +1480,127 @@
               <path d="M20.5 13.5h.01"></path>
             </svg>
           </div>
-          <span class="eyebrow">Quick Access</span>
-          <h2>Kiwix Full Library</h2>
-          <p>Browse the full offline library.</p>
+          <div class="dashboard-copy">
+            <span class="eyebrow">Quick Access</span>
+            <h2>Kiwix Full Library</h2>
+            <p>Browse the full offline library.</p>
+          </div>
           <div class="actions">
-            <a class="button primary" id="kiwix-link" href="/kiwix">Open Kiwix</a>
+            <a class="button primary" id="kiwix-link" href="/kiwix/#tag=">Open Kiwix</a>
+          </div>
+        </section>
+
+        <section class="dashboard-tile">
+          <div class="dashboard-icon" aria-hidden="true">📖</div>
+          <div class="dashboard-copy">
+            <h2>Classic Books</h2>
+            <p>Read books from Project Gutenberg offline.</p>
+          </div>
+          <div class="actions">
+            <a class="button" href="/kiwix/#tag=gutenberg"><span aria-hidden="true">📖</span> Project Gutenberg Library</a>
           </div>
         </section>
 
         <section class="dashboard-tile">
           <div class="dashboard-icon">⌖</div>
-          <span class="eyebrow">Navigation</span>
-          <h2>Offline Maps</h2>
-          <p>Open offline maps and navigation tools.</p>
+          <div class="dashboard-copy">
+            <span class="eyebrow">Navigation</span>
+            <h2>Offline Maps</h2>
+            <p>Open offline maps and navigation tools.</p>
+          </div>
           <div class="actions">
             <a class="button" href="/maps">Open Maps</a>
           </div>
         </section>
 
         <section class="dashboard-tile">
-          <div class="dashboard-icon">⚙</div>
-          <span class="eyebrow">System Tools</span>
-          <h2>Settings</h2>
-          <p>Manage services, content, maps, and device settings.</p>
-          <div class="actions">
-            <a class="button" href="/admin">Open Settings</a>
-          </div>
-        </section>
-
-        <section class="dashboard-tile">
           <div class="dashboard-icon">✚</div>
-          <span class="eyebrow">Critical</span>
-          <h2>Medical & First Aid</h2>
-          <p>Open medical and first-aid references.</p>
+          <div class="dashboard-copy">
+            <span class="eyebrow">Critical</span>
+            <h2>Medical & First Aid</h2>
+            <p>Open medical and first-aid references.</p>
+          </div>
           <div class="actions">
-            <a class="button" id="medical-link" href="/kiwix">Open Medical</a>
+            <a class="button" href="/kiwix/#tag=sopr-medical">Open Medical</a>
           </div>
         </section>
 
         <section class="dashboard-tile">
-          <div class="dashboard-icon">⛺</div>
-          <span class="eyebrow">Sustainment</span>
-          <h2>Preparedness & Repair</h2>
-          <p>Open cooking, water, shelter, and repair references.</p>
+          <div class="dashboard-icon" aria-hidden="true">💧</div>
+          <div class="dashboard-copy">
+            <h2>Food and Water</h2>
+            <p>Cooking, food storage, growing, and water treatment.</p>
+          </div>
           <div class="actions">
-            <a class="button" id="sustainment-link" href="/kiwix">Open Sustainment</a>
+            <a class="button" href="/kiwix/#tag=sopr-food-water">Open Food and Water</a>
+          </div>
+        </section>
+
+        <section class="dashboard-tile">
+          <div class="dashboard-icon" aria-hidden="true">⛺</div>
+          <div class="dashboard-copy">
+            <h2>Survival &amp; Shelter</h2>
+            <p>Survival guides, emergency shelter, and disaster preparedness.</p>
+          </div>
+          <div class="actions">
+            <a class="button" href="/kiwix/#tag=sopr-survival-shelter">Open Survival &amp; Shelter</a>
+          </div>
+        </section>
+
+        <section class="dashboard-tile">
+          <div class="dashboard-icon" aria-hidden="true">🔧</div>
+          <div class="dashboard-copy">
+            <h2>Repair</h2>
+            <p>Repair manuals and guides for tools, vehicles, and equipment.</p>
+          </div>
+          <div class="actions">
+            <a class="button" href="/kiwix/#tag=sopr-repair">Open Repair</a>
+          </div>
+        </section>
+
+        <section class="dashboard-tile">
+          <div class="dashboard-icon" aria-hidden="true">📻</div>
+          <div class="dashboard-copy">
+            <h2>Communication</h2>
+            <p>Amateur radio and communication references.</p>
+          </div>
+          <div class="actions">
+            <a class="button" href="/kiwix/#tag=sopr-communication">Open Communication</a>
+          </div>
+        </section>
+
+        <section class="dashboard-tile">
+          <div class="dashboard-icon" aria-hidden="true">⚡</div>
+          <div class="dashboard-copy">
+            <h2>Power and Energy</h2>
+            <p>Off-grid power and sustainable energy references.</p>
+          </div>
+          <div class="actions">
+            <a class="button" href="/kiwix/#tag=sopr-power-energy">Open Power and Energy</a>
           </div>
         </section>
 
         <section class="dashboard-tile" id="kolibri-tile">
           <div class="dashboard-icon">⟡</div>
-          <span class="eyebrow">Rebuild</span>
-          <h2>Education & Skills</h2>
-          <p>Open classroom-style offline learning tools.</p>
+          <div class="dashboard-copy">
+            <span class="eyebrow">Rebuild</span>
+            <h2>Education & Skills</h2>
+            <p>Open classroom-style offline learning tools.</p>
+          </div>
           <div class="actions">
             <a class="button" id="kolibri-link" href="#" aria-disabled="true">Kolibri Not Installed</a>
+          </div>
+        </section>
+
+        <section class="dashboard-tile">
+          <div class="dashboard-icon">⚙</div>
+          <div class="dashboard-copy">
+            <span class="eyebrow">System Tools</span>
+            <h2>Settings</h2>
+            <p>Manage services, content, maps, and device settings.</p>
+          </div>
+          <div class="actions">
+            <a class="button" href="/admin">Open Settings</a>
           </div>
         </section>
       </main>
@@ -1585,8 +1657,6 @@
     const storageAddedLabel = document.getElementById("storage-added-label");
     const storageFreeLabel = document.getElementById("storage-free-label");
     const storageWarning = document.getElementById("storage-warning");
-    const medicalLink = document.getElementById("medical-link");
-    const sustainmentLink = document.getElementById("sustainment-link");
     const kolibriTile = document.getElementById("kolibri-tile");
     const kolibriLink = document.getElementById("kolibri-link");
     const applyStatusText = document.getElementById("apply-status-text");
@@ -1634,23 +1704,6 @@
       if (gb >= 10) return `${gb.toFixed(1)} GB`;
       if (gb >= 1) return `${gb.toFixed(1)} GB`;
       return `${(bytes / (1024 ** 2)).toFixed(0)} MB`;
-    }
-
-    function kiwixContentHref(name) {
-      const value = String(name || "").replace(/\.zim$/i, "");
-      return value ? `/content/${value}` : "/kiwix";
-    }
-
-    function kiwixSearchHref(query) {
-      return `/kiwix/#lang=eng&tag=&q=${encodeURIComponent(query)}`;
-    }
-
-    function configureDashboardQuickLinks(installedItems = []) {
-      medicalLink.href = kiwixSearchHref("medicine");
-      sustainmentLink.href = kiwixSearchHref("prep");
-
-      medicalLink.title = "Search Kiwix for medical and medicine content";
-      sustainmentLink.title = "Search Kiwix for preparedness content";
     }
 
     function configureKolibriTile(state) {
@@ -2558,14 +2611,8 @@
 
     async function initialize() {
       try {
-        const [state, contentResponse, applyState] = await Promise.all([
+        const [state, applyState] = await Promise.all([
           loadState(),
-          fetch(`${apiBase}/content`, { cache: "no-store" }).then(async (response) => {
-            if (!response.ok) {
-              return { installed_items: [] };
-            }
-            return response.json();
-          }).catch(() => ({ installed_items: [] })),
           fetch(`${apiBase}/apply`, { cache: "no-store" }).then(async (response) => (
             response.ok ? response.json() : { status: "idle", log_tail: [] }
           )).catch(() => ({ status: "idle", log_tail: [] }))
@@ -2619,7 +2666,6 @@
         renderWikipediaOptions();
         renderMapOptions();
         renderSetupSummary();
-        configureDashboardQuickLinks(contentResponse.installed_items || []);
         configureKolibriTile(state);
         renderApplyState(applyState);
         renderMode(state);
@@ -2634,7 +2680,6 @@
         renderWikipediaOptions();
         renderMapOptions();
         renderSetupSummary();
-        configureDashboardQuickLinks([]);
         configureKolibriTile(null);
         enteredSetupFlow = true;
         renderMode({ setup_complete: false });

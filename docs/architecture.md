@@ -39,7 +39,7 @@ Likely implementation options:
 - First startup should present a basic configuration page before the normal dashboard experience
 - First-start choices should map directly to install-profile flags consumed by the shell installer
 - Once setup is marked complete, `/` should show the dashboard instead of the setup flow
-- Core categories: Quick Access, Critical, Sustainment, Rebuild, System Tools
+- The dashboard stacks cards vertically. Kiwix topic cards cover Gutenberg, Medical & First Aid, Food and Water, Survival & Shelter, Repair, Communication, and Power and Energy. Settings sits at the bottom.
 - Top-level quick links: `/kiwix`, `/maps`, `/admin`
 - A separate system status section at the bottom for disk usage, temperature, and future battery state
 - The settings/admin area should include AP configuration and enablement controls
@@ -57,7 +57,7 @@ Likely implementation options:
 ### 6. Service Routing
 
 - Nginx serves the main site and static sections
-- `/kiwix` redirects the browser to the dedicated Kiwix server port
+- `/kiwix/` proxies to the local Kiwix service. Library rebuilds apply SOPR topic tags so dashboard links open filtered views.
 - `/api` proxies to the local portal API
 - `/admin` and `/maps` are served as static app sections
 - The dedicated Kiwix port serves either the real Kiwix library or a placeholder page if no library is available yet

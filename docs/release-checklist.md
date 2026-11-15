@@ -57,11 +57,11 @@ Verify these locations:
 - `/`
 - `/admin/`
 - `/maps/`
-- `/kiwix/` redirects to the dedicated Kiwix port
+- `/kiwix/` serves Kiwix through the main site
 
 ## Kiwix Checks
 
-1. Confirm Kiwix opens correctly on the redirected port.
+1. Open Kiwix from the dashboard and check the topic filters against the installed archives. In Settings, confirm the online catalog loads and a selected ZIM can be downloaded and indexed.
 2. Confirm downloaded ZIM files exist:
    ```bash
    ls -lh /library/zims/content

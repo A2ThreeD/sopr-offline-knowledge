@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SOPR Offline Knowledge
+# Copyright (c) 2026 Aaron Morris / A2ThreeD.
+# Build the Wikipedia archive options catalog.
 
 import argparse
 import json
@@ -10,7 +13,7 @@ from pathlib import Path
 from urllib import request
 
 
-DEFAULT_SOURCE_URL = "https://download.kiwix.org/zim/wikipedia/"
+DEFAULT_SOURCE_URL = "https://cdimage.debian.org/mirror/kiwix.org/zim/wikipedia/"
 DEFAULT_OUTPUT = "catalog/wikipedia.yaml"
 SPEC_VERSION = "2026-03-27"
 ENGLISH_PREFIX = "wikipedia_en_"
