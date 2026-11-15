@@ -96,52 +96,16 @@ Reconnect with SSH after the Pi has restarted:
 ssh <your-username>@sopr.local
 ```
 
-### 4. Clone and configure SOPR
-
-On the Raspberry Pi:
+### 4. Clone and install SOPR
 
 ```bash
 git clone https://github.com/A2ThreeD/sopr-offline-knowledge.git sopr
-cd sopr
-cp config/sopr.env.example config/sopr.env
-nano config/sopr.env
+sudo ./sopr/scripts/install_sopr.sh
 ```
 
-For a first validation, retain or set these safe starter values:
+### 5. Complete setup
 
-```ini
-SOPR_HOSTNAME=sopr
-SOPR_ZIM_PROFILE=essential
-SOPR_ZIM_MODE=quick-test
-SOPR_AP_ENABLED=0
-```
-
-`quick-test` selects a small test library. It lets you validate Kiwix and the web interface before committing the card and network connection to the complete content download. Leave wireless access-point mode disabled until the normal LAN installation has been verified.
-
-### 5. Install and verify the base system
-
-```bash
-sudo ./scripts/install_sopr.sh &&
-  systemctl status sopr-portal.service sopr-kiwix.service nginx.service --no-pager
-```
-
-The installer prints `SOPR base installation complete.` when it finishes. If it stops earlier, use the first error from the installer output to diagnose the failure.
-
-Download the selected quick-test library:
-
-```bash
-sudo ./scripts/download_kiwix_zims.sh
-```
-
-Open `http://sopr.local/` in a browser, or use the Pi's IP address if local-name discovery is unavailable. Complete the first-start setup in the browser when ready for the full library and United States maps. Complete Setup downloads coverage for all 50 states, including Alaska, the western Aleutians, and Hawaii. After setup, use **Settings → Maps** for additional countries and custom regions.
-
-### 6. Download the full offline library
-
-After the quick-test system is working, edit `config/sopr.env`, change `SOPR_ZIM_MODE` to `full`, select the desired profile and Wikipedia edition, then run:
-
-```bash
-sudo ./scripts/download_kiwix_zims.sh
-```
+Open [SOPR](http://sopr.local/) or use the Raspberry Pi's IP address. Select **Complete Setup** to download the offline library and maps for all 50 U.S. states. Use **Settings → Maps** to add more regions.
 
 The ZIM library is stored at `/library/zims/content`. Large libraries can take considerable time and storage; keep the Pi powered and connected to the network until the download finishes. If a download fails, SOPR reports the failed URL, continues with the remaining content, and continues the installation. Run the download again to retry; incomplete downloads are kept in `.sopr-download-tmp` in the destination directory. SOPR downloads up to three ZIM files at a time by default. Set `SOPR_ZIM_DOWNLOAD_JOBS` to `1`, `2`, or `3` in `config/sopr.env`. Existing ZIM files remain available during a refresh, which downloads a fresh copy before replacing them and therefore requires additional time and free space.
 

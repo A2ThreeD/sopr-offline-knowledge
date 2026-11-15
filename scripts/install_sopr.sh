@@ -18,6 +18,10 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
+if [[ ! -e "$ENV_FILE" && ! -L "$ENV_FILE" && -z "${PREPMASTER_ENV_FILE:-}${SOPR_ENV_FILE:-}" ]]; then
+  (set -o noclobber; cat "$REPO_ROOT/config/sopr.env.example" > "$ENV_FILE")
+fi
+
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Missing config file: $ENV_FILE"
   exit 1
