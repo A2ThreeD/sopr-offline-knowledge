@@ -1297,7 +1297,7 @@
                 <p>Offline reference material for everyday use, emergencies, and practical skills.</p>
                 <ul>
                   <li>Includes the Wikipedia choice from the next step</li>
-                  <li>Includes any map regions selected later in setup</li>
+                  <li>Includes offline maps for all 50 U.S. states</li>
                   <li>Includes medical, repair, and preparedness references</li>
                   <li>Includes the core SOPR tools</li>
                 </ul>
@@ -1375,12 +1375,11 @@
           <section class="step-panel" data-step-panel="2">
             <div class="panel-head">
               <span class="eyebrow">Step 3</span>
-              <h2>Choose Your Map Regions</h2>
-              <p>Select one or more offline map regions to install now. You can choose all regions, or just the areas you want on this device.</p>
+              <h2>United States Offline Maps</h2>
+              <p>Complete Setup includes Protomaps coverage for all 50 states. Add more countries or build custom regions from Settings → Maps after setup.</p>
             </div>
 
-            <div class="options-grid three-up" id="map-options"></div>
-            <p class="small-note" id="map-note">Map choices will appear here once setup information loads.</p>
+            <p class="small-note" id="map-note">Checking the space needed for the United States maps.</p>
           </section>
 
           <section class="step-panel" data-step-panel="3">
@@ -1439,7 +1438,7 @@
               </article>
               <article class="review-card">
                 <h3>Maps</h3>
-                <p id="review-maps">No offline maps selected.</p>
+                <p id="review-maps">United States (all 50 states).</p>
               </article>
               <article class="review-card">
                 <h3>Connection</h3>
@@ -1642,7 +1641,6 @@
     const wikipediaSummaryTitle = document.getElementById("wikipedia-summary-title");
     const wikipediaSummarySubtext = document.getElementById("wikipedia-summary-subtext");
     const wikipediaSummary = document.getElementById("wikipedia-summary");
-    const mapOptionsContainer = document.getElementById("map-options");
     const mapNote = document.getElementById("map-note");
 
     const reviewModules = document.getElementById("review-modules");
@@ -1677,14 +1675,12 @@
       contentInstallDir: "",
       wikipediaOption: "top-mini",
       wikipediaInstallDir: "",
-      mapCollections: [],
       apEnabled: false
     };
     let contentTiers = [];
     let contentInstallDestinations = [];
     let wikipediaInstallDestinations = [];
     let wikipediaOptions = [];
-    let mapCollections = [];
     let storageState = null;
     let activeMessageText = "";
     let activeMessageIsError = false;
@@ -1839,40 +1835,13 @@
       return setupState.wikipediaInstallDir || wikipediaInstallDestinations[0]?.path || effectiveContentInstallDir();
     }
 
-    function getMapCollectionBySlug(slug) {
-      return mapCollections.find((collection) => collection.slug === slug) || null;
-    }
-
-    function normalizeMapSelection(selection) {
-      const cleaned = Array.from(new Set((selection || []).filter(Boolean)));
-      if (cleaned.includes("all")) {
-        return ["all"];
-      }
-      return cleaned;
-    }
-
-    function selectedMapCollectionMb(selection = setupState.mapCollections) {
-      const normalized = normalizeMapSelection(selection);
-      if (normalized.includes("all")) {
-        return Number(storageState?.missing_all_maps_mb || 0);
-      }
-      return normalized.reduce(
-        (total, slug) => total + Number(storageState?.missing_by_map_collection?.[slug] || 0),
-        0
-      );
-    }
-
-    function selectedSetupAddedBytes(
-      mapSelection = setupState.mapCollections,
-      wikipediaOptionId = setupState.wikipediaOption,
-      zimProfile = setupState.zimProfile
-    ) {
+    function selectedSetupAddedBytes(wikipediaOptionId = setupState.wikipediaOption, zimProfile = setupState.zimProfile) {
       const tierMb = Number(storageState?.content_tiers?.[zimProfile || ""]?.missing_mb || 0);
       const wikiMb = Number(storageState?.missing_by_wikipedia?.[wikipediaOptionId || ""] || 0);
       const kolibriMb = setupState.installKolibri && !storageState?.kolibri_installed
         ? Number(storageState?.kolibri_estimated_mb || 0)
         : 0;
-      return Math.round((tierMb + wikiMb + kolibriMb + selectedMapCollectionMb(mapSelection)) * 1024 * 1024);
+      return Math.round((tierMb + wikiMb + kolibriMb) * 1024 * 1024) + Number(storageState?.missing_us_map_bytes || 0);
     }
 
     function selectedStorageCapacity(
@@ -1884,14 +1853,15 @@
       const destinations = [
         internalDestination,
         getContentInstallDestination(contentInstallDir),
-        getWikipediaInstallDestination(wikipediaInstallDir)
+        getWikipediaInstallDestination(wikipediaInstallDir),
+        storageState?.map_install_destination?.location === "external" ? storageState.map_install_destination : null
       ].filter(Boolean);
       const seen = new Set();
       let totalBytes = 0;
       let usedBytes = 0;
       let freeBytes = 0;
       destinations.forEach((destination) => {
-        const key = destination.path || destination.id || destination.label;
+        const key = destination.path?.replace(/\/(library|maps)$/, "") || destination.id || destination.label;
         if (!key || seen.has(key)) {
           return;
         }
@@ -2124,7 +2094,7 @@
         const freeBytes = Number(selectedStorageCapacity(effectiveContentInstallDir(), option.id === "top-mini"
           ? (wikipediaInstallDestinations.find((item) => item.location === "internal")?.path || effectiveWikipediaInstallDir())
           : effectiveWikipediaInstallDir()).freeBytes || 0);
-        const projectedChoiceBytes = selectedSetupAddedBytes(setupState.mapCollections, option.id, setupState.zimProfile);
+        const projectedChoiceBytes = selectedSetupAddedBytes(option.id, setupState.zimProfile);
         const exceedsFreeSpace = freeBytes > 0 && projectedChoiceBytes > freeBytes;
 
         const button = document.createElement("button");
@@ -2177,94 +2147,11 @@
     }
 
     function renderMapOptions() {
-      mapOptionsContainer.textContent = "";
-
-      if (!mapCollections.length) {
-        mapNote.textContent = "Map choices are unavailable right now.";
-        return;
-      }
-
-      mapNote.textContent = "Choose one or more regions, or install all regions if you want the full offline map set.";
-      const freeBytes = Number(selectedStorageCapacity().freeBytes || 0);
-      const allChoice = {
-        slug: "all",
-        name: "All Regions",
-        description: "Download the full regional offline map collection.",
-        size_label: formatSize(Number(storageState?.missing_all_maps_mb || 0)),
-        resource_count: mapCollections.reduce((count, collection) => count + Number(collection.resource_count || 0), 0)
-      };
-
-      [allChoice, ...mapCollections].forEach((collection) => {
-        const selected = setupState.mapCollections.includes(collection.slug);
-        let nextSelection;
-        if (collection.slug === "all") {
-          nextSelection = selected ? [] : ["all"];
-        } else if (setupState.mapCollections.includes("all")) {
-          nextSelection = [collection.slug];
-        } else if (selected) {
-          nextSelection = setupState.mapCollections.filter((slug) => slug !== collection.slug);
-        } else {
-          nextSelection = [...setupState.mapCollections, collection.slug];
-        }
-        nextSelection = normalizeMapSelection(nextSelection);
-        const projectedChoiceBytes = selectedSetupAddedBytes(nextSelection, setupState.wikipediaOption, setupState.zimProfile);
-        const exceedsFreeSpace = freeBytes > 0 && projectedChoiceBytes > freeBytes;
-
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "option-card";
-        button.dataset.collectionSlug = collection.slug;
-        button.setAttribute("aria-pressed", selected ? "true" : "false");
-        if (exceedsFreeSpace) {
-          button.classList.add("storage-danger");
-          button.title = "This map choice is larger than the free space currently available.";
-        }
-
-        const top = document.createElement("div");
-        top.className = "option-top";
-
-        const badge = document.createElement("span");
-        badge.className = "option-badge";
-        badge.textContent = collection.size_label || "Size not listed";
-
-        const indicator = document.createElement("span");
-        indicator.className = "option-indicator";
-        indicator.textContent = selected ? "✓" : "○";
-
-        top.appendChild(badge);
-        top.appendChild(indicator);
-
-        const title = document.createElement("h3");
-        title.textContent = collection.name;
-
-        const description = document.createElement("p");
-        description.textContent = collection.description || "Offline maps for this region.";
-
-        const meta = document.createElement("div");
-        meta.className = "meta-line";
-
-        const count = document.createElement("span");
-        count.textContent = `${Number(collection.resource_count || 0)} map package${Number(collection.resource_count || 0) === 1 ? "" : "s"}`;
-
-        meta.appendChild(count);
-        button.appendChild(top);
-        button.appendChild(title);
-        button.appendChild(description);
-        button.appendChild(meta);
-
-        if (selected) {
-          button.classList.add("selected");
-        }
-
-        button.addEventListener("click", () => {
-          setupState.mapCollections = nextSelection;
-          renderWikipediaOptions();
-          renderMapOptions();
-          renderSetupSummary();
-        });
-
-        mapOptionsContainer.appendChild(button);
-      });
+      if (!storageState) return;
+      const missing = Number(storageState.missing_us_map_bytes || 0);
+      mapNote.textContent = missing
+        ? `About ${formatBytes(missing)} to download to ${storageState.map_install_destination?.label || "map storage"}.`
+        : "United States map packages are already installed.";
     }
 
     function renderSelectionCards() {
@@ -2276,18 +2163,13 @@
     function renderSetupSummary() {
       const selectedTier = selectedContentTier();
       const selectedWikipedia = selectedWikipediaOption();
-      const selectedMaps = normalizeMapSelection(setupState.mapCollections);
       const modulesText = setupState.installKolibri
         ? "Main library + learning tools."
         : "Main library only.";
       const wikipediaText = selectedWikipedia
         ? `${selectedTier?.name || "Content"} content (${selectedTier?.size_label || formatSize(Number(selectedTier?.size_mb || 0))}) + ${selectedWikipedia.name} (${formatSize(selectedWikipedia.size_mb)}).`
         : `${selectedTier?.name || "Content"} content selected.`;
-      const mapsText = selectedMaps.includes("all")
-        ? "All offline map regions."
-        : selectedMaps.length
-          ? `${selectedMaps.map((slug) => getMapCollectionBySlug(slug)?.name || slug).join(", ")}.`
-          : "No offline maps selected.";
+      const mapsText = "United States (all 50 states).";
       const networkText = setupState.apEnabled
         ? "Device Wi-Fi enabled for direct access."
         : "Use an existing network connection.";
@@ -2357,8 +2239,9 @@
       const tierBytes = Math.round(tierMb * 1024 * 1024);
       const wikiMb = Number(storageState.missing_by_wikipedia?.[selectedWikipedia?.id || ""] || 0);
       const wikiBytes = Math.round(wikiMb * 1024 * 1024);
-      const mapMb = selectedMapCollectionMb();
-      const mapBytes = Math.round(mapMb * 1024 * 1024);
+      const mapBytes = Number(storageState.missing_us_map_bytes || 0);
+      const mapDestination = storageState.map_install_destination;
+      const mapsAreInternal = mapDestination?.location !== "external";
       const kolibriMb = setupState.installKolibri && !storageState.kolibri_installed
         ? Number(storageState.kolibri_estimated_mb || 0)
         : 0;
@@ -2366,8 +2249,8 @@
       const contentBytesExternal = contentDestinationIsInternal ? 0 : tierBytes;
       const wikipediaBytesInternal = wikipediaDestinationIsInternal ? wikiBytes : 0;
       const wikipediaBytesExternal = wikipediaDestinationIsInternal ? 0 : wikiBytes;
-      const internalAddedBytes = contentBytesInternal + wikipediaBytesInternal + mapBytes + Math.round(kolibriMb * 1024 * 1024);
-      const addedBytes = internalAddedBytes + contentBytesExternal + wikipediaBytesExternal;
+      const internalAddedBytes = contentBytesInternal + wikipediaBytesInternal + (mapsAreInternal ? mapBytes : 0) + Math.round(kolibriMb * 1024 * 1024);
+      const addedBytes = internalAddedBytes + contentBytesExternal + wikipediaBytesExternal + (mapsAreInternal ? 0 : mapBytes);
 
       const capacity = selectedStorageCapacity(effectiveContentInstallDir(), effectiveWikipediaInstallDir());
       const totalBytes = capacity.totalBytes;
@@ -2375,7 +2258,9 @@
       const projectedUsedBytes = usedBytes + addedBytes;
       const projectedFreeBytes = totalBytes - projectedUsedBytes;
       const projectedFreePercent = totalBytes > 0 ? (projectedFreeBytes / totalBytes) * 100 : 0;
-      const exceedsDisk = projectedFreeBytes < 0;
+      const exceedsDisk = projectedFreeBytes < 0
+        || internalAddedBytes > Number(internalDestination?.free_bytes ?? storageState.disk.free_bytes)
+        || (!mapsAreInternal && mapBytes > Number(mapDestination.free_bytes));
       const nearFull = !exceedsDisk && projectedFreePercent <= Number(storageState.warning_free_percent || 10);
       storageLimitExceeded = exceedsDisk;
 
@@ -2401,7 +2286,7 @@
           summaryParts.push(`${formatBytes(wikiBytes)} for ${selectedWikipedia.name} on ${destinationLabel}`);
         }
         if (mapBytes > 0) {
-          summaryParts.push(`${formatBytes(mapBytes)} for offline maps on internal storage`);
+          summaryParts.push(`${formatBytes(mapBytes)} for U.S. maps on ${mapDestination?.label || "internal storage"}`);
         }
         if (kolibriMb > 0) {
           summaryParts.push(`${formatBytes(Math.round(kolibriMb * 1024 * 1024))} for learning tools on internal storage`);
@@ -2416,7 +2301,7 @@
       if (exceedsDisk) {
         storageWarning.classList.add("danger");
         storageWarning.classList.remove("hidden");
-        storageWarning.textContent = "Not enough free space for this setup. Choose a smaller Wikipedia option, fewer map regions, or skip learning tools.";
+        storageWarning.textContent = "Not enough free space for this setup. Choose a smaller Wikipedia option, a smaller content tier, or skip learning tools.";
       } else if (nearFull) {
         storageWarning.classList.add("warn");
         storageWarning.classList.remove("hidden");
@@ -2465,7 +2350,7 @@
       const notes = [
         "Step 1 of 5. Start by choosing what to include on this device.",
         "Step 2 of 5. Choose your content tier, storage disk, and Wikipedia package.",
-        "Step 3 of 5. Choose which offline map regions to include.",
+        "Step 3 of 5. Review the included United States maps.",
         "Step 4 of 5. Choose how people will connect to this device.",
         "Step 5 of 5. Review your choices and complete setup when ready."
       ];
@@ -2505,7 +2390,6 @@
             content_install_dir: effectiveContentInstallDir(),
             wikipedia_option: setupState.wikipediaOption,
             wikipedia_install_dir: effectiveWikipediaInstallDir(),
-            map_collections: setupState.mapCollections,
             ap_enabled: setupState.apEnabled,
             setup_complete: setupComplete
           })
@@ -2520,7 +2404,6 @@
         setupState.installKolibri = Boolean(latestProfile.install_kolibri);
         setupState.zimProfile = latestProfile.zim_profile || setupState.zimProfile;
         setupState.wikipediaOption = latestProfile.wikipedia_option || setupState.wikipediaOption;
-        setupState.mapCollections = normalizeMapSelection(latestProfile.map_collections || setupState.mapCollections);
         setupState.apEnabled = Boolean(latestProfile.ap_enabled);
         setupState.contentInstallDir = payload.storage?.content_install_dir || setupState.contentInstallDir;
         setupState.wikipediaInstallDir = payload.storage?.wikipedia_install_dir || setupState.wikipediaInstallDir;
@@ -2582,7 +2465,7 @@
     async function applyConfiguration() {
       clearMessage();
       if (storageLimitExceeded) {
-        window.alert("There is not enough free space for the current setup choices. Pick a smaller Wikipedia option, choose fewer map regions, or turn off learning tools before completing setup.");
+        window.alert("There is not enough free space for the current setup choices. Pick a smaller Wikipedia option, choose a smaller content tier, or turn off learning tools before completing setup.");
         return;
       }
       applyConfigButton.disabled = true;
@@ -2628,9 +2511,6 @@
         wikipediaInstallDestinations = Array.isArray(state.storage?.wikipedia_install_destinations)
           ? state.storage.wikipedia_install_destinations
           : [];
-        mapCollections = Array.isArray(state.setup_options?.maps?.collections)
-          ? state.setup_options.maps.collections
-          : [];
 
         setupState.installKolibri = Boolean(state.profile.install_kolibri);
         setupState.apEnabled = Boolean(state.profile.ap_enabled);
@@ -2638,7 +2518,6 @@
         setupState.contentInstallDir = state.storage?.content_install_dir || contentInstallDestinations[0]?.path || "";
         setupState.wikipediaOption = state.profile.wikipedia_option || "top-mini";
         setupState.wikipediaInstallDir = state.storage?.wikipedia_install_dir || wikipediaInstallDestinations[0]?.path || "";
-        setupState.mapCollections = normalizeMapSelection(state.profile.map_collections || []);
         storageState = state.storage || null;
         enteredSetupFlow = forceSetup || !Boolean(state.setup_complete);
         updateDriveNotice();

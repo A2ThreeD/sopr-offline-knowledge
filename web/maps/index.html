@@ -430,6 +430,7 @@
         </div>
         <div class="actions">
           <button class="button" id="go-button" type="button">Go To Coordinates</button>
+          <a class="button secondary" id="build-map-from-view" href="/admin/#maps">Build Map From This View</a>
         </div>
       </section>
 
@@ -628,6 +629,14 @@
       const raw = String(filename || "").replace(/\.pmtiles$/i, "");
       if (!raw) return "Offline Map";
       if (raw === "basemap") return "Base Map";
+      const usParts = {
+        "country-us": "United States (continental)", "country-us-alaska": "Alaska",
+        "country-us-western-aleutians": "Western Aleutians", "country-us-hawaii": "Hawaii"
+      };
+      if (Object.hasOwn(usParts, raw)) return usParts[raw];
+      const countryCode = /^country-([a-z]{2})$/.exec(raw)?.[1]?.toUpperCase();
+      if (countryCode) return new Intl.DisplayNames(["en"], { type: "region" }).of(countryCode);
+      if (raw.startsWith("custom-")) return raw.slice(7).split("-").map(titleCaseWord).join(" ");
 
       const parts = raw.split("_").filter(Boolean);
       const yearMonthPattern = /^\d{4}-\d{2}$/;
@@ -643,11 +652,13 @@
       const byName = new Map(catalogItems.map((item) => [item.name, item]));
       return (state.available_files || []).map((filename) => {
         const item = byName.get(filename);
+        const custom = filename.startsWith("custom-");
+        const country = filename.startsWith("country-");
         return {
           filename,
           title: item?.title || friendlyMapName(filename),
-          regionSlug: item?.region_slug || "other",
-          regionName: item?.region_name || "Other Installed Maps",
+          regionSlug: custom ? "custom" : country ? "countries" : item?.region_slug || "other",
+          regionName: custom ? "Custom Maps" : country ? "Country Maps" : item?.region_name || "Other Installed Maps",
           description: item?.description || "",
           version: item?.version || ""
         };
@@ -791,6 +802,10 @@
         if (!isUsableBounds(header)) {
           return;
         }
+        if (/^(custom|country)-/.test(config.pmtilesFile) && header.maxZoom > config.maxZoom) {
+          mapInstance.setMaxZoom(header.maxZoom);
+          zoomInput.max = String(header.maxZoom);
+        }
         mapInstance.fitBounds(
           [
             [header.minLon, header.minLat],
@@ -824,6 +839,8 @@
 
         latInput.value = config.defaultLat;
         lonInput.value = config.defaultLon;
+        zoomInput.min = String(config.minZoom);
+        zoomInput.max = String(config.maxZoom);
         zoomInput.value = config.defaultZoom;
         zoomValue.textContent = String(config.defaultZoom);
 
@@ -864,6 +881,8 @@
         });
 
         mapInstance.addControl(new maplibregl.NavigationControl(), "top-right");
+        mapInstance.on("moveend", updateBuildMapLink);
+        updateBuildMapLink();
         mapInstance.once("idle", () => {
           clearMapStatus();
           mapReloadInProgress = false;
@@ -987,6 +1006,27 @@
       } catch (error) {
         // Ignore periodic sync failures and keep the current map view.
       }
+    }
+
+    const buildMapLink = document.getElementById("build-map-from-view");
+    function updateBuildMapLink() {
+      if (!mapInstance) return;
+      const bounds = mapInstance.getBounds();
+      const span = bounds.getEast() - bounds.getWest();
+      const west = ((bounds.getWest() + 180) % 360 + 360) % 360 - 180;
+      const east = west + span;
+      if (span < 360 && east > 180) {
+        buildMapLink.href = "/admin/#maps";
+        buildMapLink.title = "Enter bounds for one side of the date line in Settings.";
+        return;
+      }
+      buildMapLink.removeAttribute("title");
+      const coordinates = [
+        span >= 360 ? -180 : west, Math.max(-85.0511, bounds.getSouth()),
+        span >= 360 ? 180 : east, Math.min(85.0511, bounds.getNorth())
+      ];
+      const params = new URLSearchParams({ map_bounds: coordinates.map((value) => value.toFixed(7)).join(",") });
+      buildMapLink.href = `/admin/?${params}#maps`;
     }
 
     document.getElementById("go-button").addEventListener("click", () => {

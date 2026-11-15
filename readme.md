@@ -133,7 +133,7 @@ Download the selected quick-test library:
 sudo ./scripts/download_kiwix_zims.sh
 ```
 
-Open `http://sopr.local/` in a browser, or use the Pi's IP address if local-name discovery is unavailable. Complete the first-start setup in the browser.
+Open `http://sopr.local/` in a browser, or use the Pi's IP address if local-name discovery is unavailable. Complete the first-start setup in the browser when ready for the full library and United States maps. Complete Setup downloads coverage for all 50 states, including Alaska, the western Aleutians, and Hawaii. After setup, use **Settings → Maps** for additional countries and custom regions.
 
 ### 6. Download the full offline library
 
@@ -143,7 +143,7 @@ After the quick-test system is working, edit `config/sopr.env`, change `SOPR_ZIM
 sudo ./scripts/download_kiwix_zims.sh
 ```
 
-The ZIM library is stored at `/library/zims/content`. Large libraries can take considerable time and storage; keep the Pi powered and connected to the network until the download finishes. If a download fails, SOPR reports the failed URL, continues with the remaining content, and continues the installation. Run the download again to retry; incomplete downloads are kept in `.sopr-download-tmp` in the destination directory. Existing ZIM files remain available during a refresh, which downloads a fresh copy before replacing them and therefore requires additional time and free space.
+The ZIM library is stored at `/library/zims/content`. Large libraries can take considerable time and storage; keep the Pi powered and connected to the network until the download finishes. If a download fails, SOPR reports the failed URL, continues with the remaining content, and continues the installation. Run the download again to retry; incomplete downloads are kept in `.sopr-download-tmp` in the destination directory. SOPR downloads up to three ZIM files at a time by default. Set `SOPR_ZIM_DOWNLOAD_JOBS` to `1`, `2`, or `3` in `config/sopr.env`. Existing ZIM files remain available during a refresh, which downloads a fresh copy before replacing them and therefore requires additional time and free space.
 
 ### OS-only preparation
 
@@ -176,6 +176,21 @@ sudo ./scripts/bootstrap_pi.sh
 - The interface uses the device's standard system font.
 - Scrollable panels use white scrollbars on a dark track as a shared SOPR design rule. New scrollable boxes should keep that treatment for consistency.
 - User-facing UI should describe upstream sources in generic terms like `regional map catalog` or `offline map packages` rather than adopting another project's branding as a primary label. Source attribution can still live in documentation or secondary status text when needed.
+
+## Build custom offline maps
+
+SOPR can extract a region from a larger Protomaps basemap and install it alongside catalog maps. MapLibre renders the resulting local archive through Nginx.
+
+1. The SOPR base installer installs the Protomaps CLI on 64-bit Raspberry Pi OS and Debian AMD64, checking the checksum before installing. For a manual install, download the [Protomaps `pmtiles` CLI](https://github.com/protomaps/go-pmtiles/releases) on the SOPR server. Choose the release for its OS and architecture (typically Linux ARM64 on a 64-bit Raspberry Pi OS install). Install the extracted binary with `sudo install -m 0755 pmtiles /usr/local/bin/pmtiles`.
+2. SOPR finds a recent [Protomaps daily build](https://maps.protomaps.com/builds/) automatically. To use your own source or pin a build, set `SOPR_MAP_BUILD_SOURCE` in `config/sopr.env` to an absolute path to a local archive, such as `/library/sources/planet.pmtiles`, or copy a dated HTTPS URL from [Protomaps Builds](https://maps.protomaps.com/builds/). Keep the local source outside the installed maps folder so it stays out of the map picker. The source must be a clustered PMTiles v3 MVT archive with Protomaps basemap layers. The local source works offline. A remote source needs an internet connection and an HTTPS server that supports byte-range requests.
+3. Open **Settings → Maps → Build a Custom Map**. Enter a name, bounds in west, south, east, north order, and the maximum zoom. You can start with the current rectangle by choosing **Build Map From This View** in the map viewer. For an area spanning the date line, build one map for each side. The default maximum zoom is 13. A larger rectangle or higher maximum zoom can increase build time and storage considerably.
+4. Follow the job log in Settings. A successful build appears under **Installed Map Regions** in Settings and **Custom Maps** in the viewer. SOPR selects it automatically if there is no valid active archive. The resulting `custom-<name>.pmtiles` is stored in the selected map install location and can be copied to another SOPR installation.
+
+For country maps, open **Settings → Maps → Available Countries**. Filter by country name or ISO code, or use a quick-pick bundle. The picker shows estimated download size and free space on the selected destination. **Install Selected** extracts one country at a time through zoom 15, leaves existing maps in place, and skips countries already installed. Use **Map Jobs** to check progress or cancel the current extract and remaining queue. Any completed country maps stay installed and appear under **Country Maps** in the viewer. Country coverage uses bounding boxes, which can include neighboring areas.
+
+The country bounds, bundles, and size estimates are based on the [PrepperPi catalog](https://github.com/jmarler/prepperpi/blob/998a8f1c0beed00975b539c16acfeddd90f61c3a/services/prepperpi-tiles/regions.json), published under [MIT-0](https://github.com/jmarler/prepperpi/blob/998a8f1c0beed00975b539c16acfeddd90f61c3a/LICENSE). SOPR bundles the catalog for offline access, clips Antarctica’s south bound to Web Mercator’s limit, and extends United States coverage beyond the continental archive.
+
+This workflow extracts existing vector tiles. Generating tiles from raw OSM extracts, arbitrary GeoJSON, or imagery requires a separate tile-building tool and a compatible map style.
 
 ## Validation
 

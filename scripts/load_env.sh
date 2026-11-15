@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SOPR Offline Knowledge
+# Copyright (c) 2026 Aaron Morris / A2ThreeD.
+# Shell helpers for loading the installer configuration.
 
 mirror_sopr_prefixed_vars() {
   local suffix old_key new_key old_val new_val
@@ -33,6 +36,7 @@ mirror_sopr_prefixed_vars() {
     INSTALL_MAPS \
     KOLIBRI_PORT \
     MAPS_ROOT \
+    MAP_BUILD_SOURCE \
     MAP_CATALOG_URL \
     MAP_COLLECTIONS \
     MAP_COLLECTIONS_URL \
@@ -62,6 +66,7 @@ mirror_sopr_prefixed_vars() {
     ZIM_CUSTOM_BASE_PROFILE \
     ZIM_CUSTOM_SELECTION_FILE \
     ZIM_CUSTOM_URL_FILE \
+    ZIM_DOWNLOAD_JOBS \
     ZIM_INSTALL_DIR \
     ZIM_MODE \
     ZIM_PROFILE \

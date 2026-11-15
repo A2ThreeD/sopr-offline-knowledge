@@ -1559,26 +1559,36 @@
           <div class="status-cluster" id="maps-status" aria-live="polite"></div>
           <p class="substatus" id="maps-status-note">Loading map package status.</p>
         </section>
-        <section class="card">
-          <h2>Regional Map Sync</h2>
-          <p class="muted">
-            Choose All Regions or the specific regions you want on the Pi. Updating installed maps will download the selected regions and remove unchecked regional map packages.
-          </p>
-          <p class="muted" id="maps-catalog-source">Catalog source: loading</p>
+        <section class="card" id="country-map-picker">
+          <h2>Available Countries</h2>
           <div class="field">
             <label for="maps-install-target">Install New Maps To</label>
             <select id="maps-install-target"></select>
           </div>
+          <p class="muted">Install countries from the configured basemap, one at a time. Estimates vary with the source and coverage.</p>
           <div class="field">
-            <label>Regional Map Downloads</label>
-            <div id="maps-catalog-list" class="log-panel muted">Online catalog is idle. Click Check Online Catalog when you want to query the latest regional map catalog.</div>
+            <label>Quick-pick bundles</label>
+            <div class="actions" id="country-map-bundles"></div>
+          </div>
+          <p class="status" id="country-map-summary" aria-live="polite">Loading country catalog.</p>
+          <div class="field">
+            <label for="country-map-filter">Filter by country or ISO code</label>
+            <input id="country-map-filter" type="search" placeholder="Canada or CA">
+            <div id="country-map-list" class="log-panel muted"></div>
           </div>
           <div class="actions">
-            <button class="button" data-icon="☑" id="select-all-maps-button" type="button">SELECT ALL</button>
-            <button class="button" data-icon="☁" id="refresh-catalog-button" type="button">Check Online Catalog</button>
-            <button class="button" data-icon="↓" id="sync-maps-button" type="button">Update Installed Maps</button>
+            <button class="button" id="install-country-maps" type="button" disabled>Install Selected</button>
+            <button class="button" id="clear-country-maps" type="button">Clear</button>
+            <a class="button" href="/maps/">Open Map</a>
           </div>
-          <p class="status" id="maps-sync-status">Map sync: idle</p>
+          <p class="substatus" id="country-map-note" aria-live="polite"></p>
+        </section>
+        <section class="card">
+          <h2>Map Jobs</h2>
+          <p class="status" id="maps-sync-status">Map job: idle</p>
+          <div class="actions">
+            <button class="button hidden" id="cancel-map-build" type="button">Cancel Install</button>
+          </div>
           <div class="progress-shell">
             <div class="progress-top">
               <span class="progress-label" id="maps-progress-label">Waiting for map sync</span>
@@ -1596,6 +1606,44 @@
           <div class="log-panel hidden" id="maps-log-panel">
             <strong>Map Sync Log</strong>
             <pre id="maps-sync-log">No map sync activity yet.</pre>
+          </div>
+        </section>
+        <section class="card" id="custom-map-builder">
+          <h2>Build a Custom Map</h2>
+          <p class="muted">Extract a region from the configured basemap into a PMTiles file on the selected map storage. Higher zooms can take more time and space.</p>
+          <form id="custom-map-form">
+            <div class="field">
+              <label for="custom-map-name">Map Name</label>
+              <input id="custom-map-name" name="name" required maxlength="49" pattern="[a-z0-9](?:[a-z0-9\-]{0,47}[a-z0-9])?" placeholder="my-region">
+            </div>
+            <div class="field">
+              <label for="custom-map-bounds">Bounds (west, south, east, north)</label>
+              <input id="custom-map-bounds" name="bounds" required placeholder="-123.2, 45.3, -122.2, 45.8">
+            </div>
+            <div class="field">
+              <label for="custom-map-zoom">Maximum Zoom</label>
+              <input id="custom-map-zoom" name="zoom" type="number" min="0" max="15" value="13" required>
+            </div>
+            <div class="actions">
+              <button class="button" id="build-custom-map-button" type="submit">Build Map</button>
+            </div>
+            <p class="substatus" id="custom-map-status" aria-live="polite"></p>
+          </form>
+        </section>
+        <section class="card">
+          <h2>Prebuilt Regional Packages</h2>
+          <p class="muted">
+            Choose All Regions or the specific regions you want on the Pi. Updating installed maps will download the selected regions and remove unchecked regional map packages.
+          </p>
+          <p class="muted" id="maps-catalog-source">Catalog source: loading</p>
+          <div class="field">
+            <label>Regional Map Downloads</label>
+            <div id="maps-catalog-list" class="log-panel muted">Online catalog is idle. Click Check Online Catalog when you want to query the latest regional map catalog.</div>
+          </div>
+          <div class="actions">
+            <button class="button" data-icon="☑" id="select-all-maps-button" type="button">SELECT ALL</button>
+            <button class="button" data-icon="☁" id="refresh-catalog-button" type="button">Check Online Catalog</button>
+            <button class="button" data-icon="↓" id="sync-maps-button" type="button">Update Installed Maps</button>
           </div>
         </section>
       </div>
@@ -1709,6 +1757,9 @@
     let currentMaps = null;
     let currentCatalog = null;
     let pendingMapSelection = new Set();
+    let countryMapCatalog = null;
+    const selectedCountries = new Set();
+    let mapJobRunning = false;
     let currentAccessPoint = null;
     let mapsSyncPollHandle = null;
     let currentPanel = "system";
@@ -2300,6 +2351,16 @@
       const raw = String(name || "").replace(/\.pmtiles$/i, "");
       if (!raw) return String(name || "");
       if (raw === "basemap") return "Base Map";
+      const usParts = { "country-us-alaska": "Alaska", "country-us-western-aleutians": "Western Aleutians", "country-us-hawaii": "Hawaii" };
+      if (Object.hasOwn(usParts, raw)) return usParts[raw];
+      const countryCode = /^country-([a-z]{2})$/.exec(raw)?.[1]?.toUpperCase();
+      if (countryCode) {
+        return countryMapCatalog?.countries.find((country) => country.id === countryCode)?.name
+          || new Intl.DisplayNames(["en"], { type: "region" }).of(countryCode);
+      }
+      if (raw.startsWith("custom-")) {
+        return raw.slice(7).split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+      }
       const withoutVersion = raw.replace(/_\d{4}-\d{2}$/i, "");
       return withoutVersion
         .split("_")
@@ -3656,7 +3717,93 @@
       return payload;
     }
 
+    async function loadCountryMapCatalog() {
+      try {
+        const { response, payload } = await fetchJsonWithTimeout("/api/maps/countries");
+        if (!response.ok) throw new Error(payload.error || "Country catalog unavailable.");
+        countryMapCatalog = payload;
+        for (const country of payload.countries) {
+          if (country.installed) selectedCountries.delete(country.id);
+        }
+        renderCountryMapPicker();
+      } catch (error) {
+        document.getElementById("country-map-note").textContent = error.message;
+      }
+    }
+
+    function renderCountryMapSummary() {
+      const target = (currentMaps?.install_destinations || []).find((item) => item.path === currentMaps.install_dir);
+      const countries = (countryMapCatalog?.countries || []).filter((country) => selectedCountries.has(country.id));
+      const estimate = countries.reduce((total, country) => total + (country.missing_bytes || 0), 0);
+      const available = target?.free_bytes;
+      const space = available === undefined ? "Free space unavailable" : `${formatBytes(available)} free`;
+      document.getElementById("country-map-summary").textContent =
+        `${space} · ${countries.length} selected · about ${formatBytes(estimate)}${available !== undefined && estimate > available ? " · exceeds available space" : ""}`;
+      document.getElementById("install-country-maps").disabled = mapJobRunning || !countries.length;
+      document.getElementById("clear-country-maps").disabled = mapJobRunning || !countries.length;
+    }
+
+    function renderCountryMapBundles() {
+      const available = new Set(countryMapCatalog.countries.filter((country) => !country.installed).map((country) => country.id));
+      document.getElementById("country-map-bundles").innerHTML = countryMapCatalog.bundles.map((bundle) => {
+        const members = bundle.countries.filter((id) => available.has(id));
+        const selected = members.length > 0 && members.every((id) => selectedCountries.has(id));
+        return `<button class="button" type="button" data-bundle="${escapeHtml(bundle.id)}" aria-pressed="${selected}"
+          ${mapJobRunning || !members.length ? "disabled" : ""}>${escapeHtml(bundle.name)} (${members.length})</button>`;
+      }).join("");
+    }
+
+    function renderCountryMapPicker() {
+      if (!countryMapCatalog) return;
+      const filter = document.getElementById("country-map-filter").value.trim().toLowerCase();
+      const countries = countryMapCatalog.countries.filter((country) =>
+        country.name.toLowerCase().includes(filter) || country.id.toLowerCase().includes(filter)
+      );
+      renderCountryMapBundles();
+      document.getElementById("country-map-list").innerHTML = countries.map((country) =>
+        `<label class="zim-entry">
+          <input type="checkbox" value="${escapeHtml(country.id)}" ${selectedCountries.has(country.id) ? "checked" : ""}
+            ${country.installed || mapJobRunning ? "disabled" : ""}>
+          <span class="zim-entry-body"><span class="zim-entry-title">${escapeHtml(country.name)} (${escapeHtml(country.id)})</span>
+            <span class="zim-entry-desc">${country.installed ? "Installed" : escapeHtml(formatBytes(country.missing_bytes))}</span></span>
+        </label>`
+      ).join("") || "No countries match your search.";
+      renderCountryMapSummary();
+    }
+
+    async function installSelectedCountries() {
+      const note = document.getElementById("country-map-note");
+      const button = document.getElementById("install-country-maps");
+      button.disabled = true;
+      note.textContent = "";
+      try {
+        const { response, payload } = await fetchJsonWithTimeout("/api/maps/countries", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ country_ids: [...selectedCountries] })
+        });
+        if (!response.ok) throw new Error(payload.error || "Unable to start installing countries.");
+        renderMapSyncState(payload);
+      } catch (error) {
+        note.textContent = error.message;
+        renderCountryMapSummary();
+      }
+    }
+
+    async function cancelMapExtraction() {
+      const button = document.getElementById("cancel-map-build");
+      button.disabled = true;
+      try {
+        const { response, payload } = await fetchJsonWithTimeout("/api/maps/build/cancel", { method: "POST" });
+        if (!response.ok) throw new Error(payload.error || "Unable to cancel the map install.");
+        renderMapSyncState(payload);
+      } catch (error) {
+        document.getElementById("maps-summary-status").textContent = error.message;
+        button.disabled = false;
+      }
+    }
+
     async function loadMapsPanelData() {
+      loadCountryMapCatalog();
       document.getElementById("maps-root").textContent = "PMTiles root: checking local storage...";
       document.getElementById("active-map-file").textContent = "Active map: checking local storage...";
       document.getElementById("maps-local-list").textContent = "Checking local PMTiles packages...";
@@ -3664,7 +3811,9 @@
         const [maps, stateResult, catalogResult] = await Promise.all([
           loadLocalMapsState(),
           fetchJsonWithTimeout("/api/state"),
-          fetchJsonWithTimeout("/api/maps/catalog")
+          fetchJsonWithTimeout("/api/maps/catalog").catch((error) => ({
+            payload: { items: [], collections: [], error: error.message }
+          }))
         ]);
         currentMaps = maps;
         currentState = stateResult.payload;
@@ -3757,6 +3906,7 @@
       const installedRegions = installedMapRegions(maps, currentCatalog);
       pendingMapSelection = new Set(installedRegions.map((collection) => collection.slug));
       renderLocalInstalledMaps(maps);
+      if (countryMapCatalog) renderCountryMapSummary();
     }
 
     function populateInstallTargetSelect(elementId, options, selectedValue) {
@@ -3786,13 +3936,17 @@
     function renderLocalInstalledMaps(maps) {
       const container = document.getElementById("maps-local-list");
       const regions = installedMapRegions(maps, currentCatalog);
+      const customFiles = [
+        ...(maps.available_files || []),
+        ...(maps.invalid_files || []).map((item) => item.name)
+      ].filter((name) => name.startsWith("custom-") || name.startsWith("country-"));
 
-      if (!regions.length) {
+      if (!regions.length && !customFiles.length) {
         container.textContent = "No regional map packages found on local storage.";
         return;
       }
 
-      container.innerHTML = regions.map((region) => {
+      const regionRows = regions.map((region) => {
         const checked = pendingMapSelection.has(region.slug) ? "checked" : "";
         const details = [];
         if (region.fully_installed) {
@@ -3817,7 +3971,15 @@
             <span class="zim-entry-title">${escapeHtml(region.name)}</span>${descriptionText}
           </span>
         </label>`;
-      }).join("");
+      });
+      const customRows = customFiles.map((name) => `<label class="zim-entry">
+        <input type="checkbox" class="local-map-checkbox" data-custom-file value="${escapeHtml(name)}">
+        <span class="zim-entry-body">
+          <span class="zim-entry-title">${escapeHtml(friendlyMapTitle(name))}</span>
+          <span class="zim-entry-desc">- ${name.startsWith("country-") ? "Country map" : "Custom map"}${name === maps.active_file ? " · active" : ""}</span>
+        </span>
+      </label>`);
+      container.innerHTML = [...regionRows, ...customRows].join("");
     }
 
     function catalogWithCurrentLocalState(catalog) {
@@ -3852,11 +4014,16 @@
 
     function renderCatalog(catalog) {
       const effectiveCatalog = catalogWithCurrentLocalState(catalog);
+      const container = document.getElementById("maps-catalog-list");
+      if (!effectiveCatalog?.source) {
+        document.getElementById("maps-catalog-source").textContent = "Regional map catalog unavailable";
+        container.textContent = effectiveCatalog?.error || "The online map catalog is unavailable.";
+        return;
+      }
       document.getElementById("maps-catalog-source").textContent =
         effectiveCatalog.source.collections_url
           ? `Catalog source: regional map catalog`
           : `Catalog source: ${effectiveCatalog.source.owner}/${effectiveCatalog.source.repo}:${effectiveCatalog.source.subdir}`;
-      const container = document.getElementById("maps-catalog-list");
 
       if (!effectiveCatalog.collections || !effectiveCatalog.collections.length) {
         container.innerHTML = "No map regions were returned by the online map catalog.";
@@ -3902,29 +4069,38 @@
     }
 
     function renderMapSyncState(state) {
-      const step = state.current_file ? ` | ${state.current_file}` : "";
+      const countries = state.operation === "countries";
+      const building = state.operation === "build";
+      const extracting = building || countries;
+      const step = state.current_file ? ` | ${extracting ? state.current_label || state.current_file : state.current_file}` : "";
+      const overallProgress = extracting && state.status === "running" && Number.isFinite(state.current_percent)
+        ? Math.floor(((state.current_index - 1) * 100 + state.current_percent) / state.total_files)
+        : state.progress_percent || 0;
       document.getElementById("maps-sync-status").textContent =
-        `Map sync: ${state.status}${step}`;
+        `Map ${countries ? "install" : building ? "build" : "sync"}: ${state.status}${step}`;
       document.getElementById("maps-progress-label").textContent =
-        state.status === "running" ? "Syncing map packages" : "Waiting for map sync";
+        state.status === "running" ? (countries ? "Installing countries" : building ? "Building custom map" : "Syncing map packages") : "Waiting for a map job";
       document.getElementById("maps-progress-value").textContent =
-        `${state.progress_percent || 0}%`;
+        `${overallProgress}%`;
       document.getElementById("maps-progress-fill").style.width =
-        `${state.progress_percent || 0}%`;
+        `${overallProgress}%`;
       let mapCurrentFileText = "Current map: none";
       let mapSummaryText = "No active map sync.";
       if (state.current_file) {
-        mapCurrentFileText = `Current map: ${state.current_file}`;
+        mapCurrentFileText = `Current map: ${state.current_label || state.current_file}`;
         if (state.current_index && state.total_files) {
           mapCurrentFileText += ` (${state.current_index}/${state.total_files})`;
-          mapSummaryText = `Syncing ${state.current_index} of ${state.total_files} selected maps.`;
+          mapSummaryText = extracting ? "Extracting and verifying the selected area." : `Syncing ${state.current_index} of ${state.total_files} selected maps.`;
         }
       }
       if (state.status === "succeeded") {
-        mapSummaryText = "Map sync completed successfully.";
+        mapSummaryText = countries ? `Installed ${state.completed_files.length} country map(s).`
+          : building ? "Custom map is ready in Installed Map Regions." : "Map sync completed successfully.";
       } else if (state.status === "failed") {
         mapSummaryText = state.error || "Map sync failed.";
       }
+      if (state.status === "cancelled") mapSummaryText = "Install cancelled. Completed maps are still available.";
+      if (state.cancel_requested && extracting && state.status === "running") mapSummaryText = "Cancelling the current extraction.";
       document.getElementById("maps-current-file-status").textContent = mapCurrentFileText;
       document.getElementById("maps-summary-status").textContent = mapSummaryText;
       document.getElementById("maps-sync-log").textContent =
@@ -3933,6 +4109,24 @@
           : "No map sync activity yet.";
 
       const running = state.status === "running";
+      const cancelButton = document.getElementById("cancel-map-build");
+      cancelButton.classList.toggle("hidden", !running || !extracting);
+      cancelButton.disabled = Boolean(state.cancel_requested);
+      if (mapJobRunning !== running) {
+        mapJobRunning = running;
+        renderCountryMapPicker();
+      }
+      if (countries) {
+        document.getElementById("country-map-note").textContent = state.status === "running"
+          ? `${mapCurrentFileText} · ${overallProgress}% of queue · ${mapSummaryText}`
+          : mapSummaryText;
+      }
+      document.getElementById("build-custom-map-button").disabled = running;
+      if (building) {
+        document.getElementById("custom-map-status").textContent = state.status === "running"
+          ? `Building ${state.current_file}. See the map job log below.`
+          : mapSummaryText;
+      }
       document.getElementById("sync-maps-button").disabled = running;
       document.getElementById("sync-maps-button").textContent = running ? "Updating..." : "Update Installed Maps";
       document.getElementById("maps-install-target").disabled = running;
@@ -4241,14 +4435,20 @@
       }
     }
 
+    let refreshedMapBuild = null;
     async function loadMapSyncState() {
       try {
         const { payload } = await fetchJsonWithTimeout("/api/maps/sync");
         renderMapSyncState(payload);
         if (payload.status !== "running" && currentPanel === "maps") {
           const note = document.getElementById("maps-status-note");
-          if (payload.status === "succeeded") {
-            note.textContent = "Map sync finished. Use Refresh Installed Maps if you want to reload the region lists now.";
+          const extracted = ["build", "countries"].includes(payload.operation);
+          if (extracted && payload.finished_at && refreshedMapBuild !== payload.finished_at) {
+            refreshedMapBuild = payload.finished_at;
+            await Promise.all([refreshMapsList(), loadCountryMapCatalog()]);
+          }
+          if (payload.status === "succeeded" && !extracted) {
+            note.textContent = "Map sync finished. Use Refresh Installed Maps to reload the region lists.";
           } else if (payload.status === "failed" && payload.error) {
             note.textContent = payload.error;
           }
@@ -4316,17 +4516,18 @@
 
     async function removeSelectedLocalMaps() {
       const button = document.getElementById("remove-local-maps-button");
-      const selectedRegions = Array.from(document.querySelectorAll(".local-map-checkbox:checked"))
-        .map((checkbox) => checkbox.value);
+      const checked = Array.from(document.querySelectorAll(".local-map-checkbox:checked"));
+      const selectedRegions = checked.filter((box) => !box.hasAttribute("data-custom-file")).map((box) => box.value);
+      const customFiles = checked.filter((box) => box.hasAttribute("data-custom-file")).map((box) => box.value);
 
-      if (!selectedRegions.length) {
+      if (!checked.length) {
         document.getElementById("maps-status-note").textContent = "Select one or more installed map regions to remove.";
         return;
       }
 
-      const selected = selectedMapFilesFromRegions(new Set(selectedRegions), currentCatalog);
-
-      const confirmationMessage = `Remove ${selectedRegions.length} selected map region${selectedRegions.length === 1 ? "" : "s"} from local storage?\n\n${selectedRegions.map((slug) => mapCollectionBySlug(slug)?.name || slug).join("\n")}`;
+      const selected = [...new Set([...selectedMapFilesFromRegions(new Set(selectedRegions), currentCatalog), ...customFiles])];
+      const labels = [...selectedRegions.map((slug) => mapCollectionBySlug(slug)?.name || slug), ...customFiles.map(friendlyMapTitle)];
+      const confirmationMessage = `Remove the selected maps from local storage?\n\n${labels.join("\n")}`;
       if (!window.confirm(confirmationMessage)) {
         document.getElementById("maps-status-note").textContent = "Map removal canceled.";
         return;
@@ -4359,7 +4560,7 @@
         currentMaps = refreshedMaps;
         renderMapsState(
           refreshedMaps,
-          `Removed ${selectedRegions.length} local map region${selectedRegions.length === 1 ? "" : "s"}.`
+          "Removed the selected local maps."
         );
         renderMapsStorage(currentState, refreshedMaps);
       } catch (error) {
@@ -4375,6 +4576,37 @@
       const button = document.getElementById(buttonId);
       const hidden = panel.classList.toggle("hidden");
       button.textContent = hidden ? showLabel : hideLabel;
+    }
+
+    async function buildCustomMap(event) {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      const status = document.getElementById("custom-map-status");
+      const button = document.getElementById("build-custom-map-button");
+      const parts = String(form.get("bounds")).split(",").map((part) => part.trim());
+      if (parts.length !== 4 || parts.some((part) => !part || !Number.isFinite(Number(part)))) {
+        status.textContent = "Enter four comma-separated coordinates.";
+        return;
+      }
+      button.disabled = true;
+      try {
+        const { response, payload } = await fetchJsonWithTimeout("/api/maps/build", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: form.get("name"),
+            bounds: parts.map(Number),
+            max_zoom: Number(form.get("zoom"))
+          })
+        });
+        if (!response.ok) {
+          throw new Error(payload.error || "Unable to start map generation");
+        }
+        renderMapSyncState(payload);
+      } catch (error) {
+        status.textContent = error.message;
+        button.disabled = false;
+      }
     }
 
     async function syncMapsSelection() {
@@ -4635,6 +4867,39 @@
       return "system";
     }
 
+    document.getElementById("country-map-filter").addEventListener("input", renderCountryMapPicker);
+    document.getElementById("country-map-list").addEventListener("change", (event) => {
+      if (!(event.target instanceof HTMLInputElement)) return;
+      if (event.target.checked) selectedCountries.add(event.target.value);
+      else selectedCountries.delete(event.target.value);
+      renderCountryMapBundles();
+      renderCountryMapSummary();
+    });
+    document.getElementById("country-map-bundles").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-bundle]");
+      if (!button || !countryMapCatalog) return;
+      const bundle = countryMapCatalog.bundles.find((entry) => entry.id === button.dataset.bundle);
+      const members = countryMapCatalog.countries.filter((country) => !country.installed && bundle.countries.includes(country.id));
+      const remove = members.every((country) => selectedCountries.has(country.id));
+      for (const country of members) {
+        if (remove) selectedCountries.delete(country.id);
+        else selectedCountries.add(country.id);
+      }
+      renderCountryMapPicker();
+      document.querySelector(`[data-bundle="${CSS.escape(bundle.id)}"]`)?.focus({ preventScroll: true });
+    });
+    document.getElementById("clear-country-maps").addEventListener("click", () => {
+      selectedCountries.clear();
+      renderCountryMapPicker();
+    });
+    document.getElementById("install-country-maps").addEventListener("click", installSelectedCountries);
+    document.getElementById("cancel-map-build").addEventListener("click", cancelMapExtraction);
+    document.getElementById("custom-map-form").addEventListener("submit", buildCustomMap);
+    const requestedMapBounds = new URLSearchParams(window.location.search).get("map_bounds");
+    if (requestedMapBounds && window.location.hash === "#maps") {
+      document.getElementById("custom-map-bounds").value = requestedMapBounds;
+      requestAnimationFrame(() => document.getElementById("custom-map-builder").scrollIntoView());
+    }
     setActivePanel(initialPanelFromLocation());
     updateContentPaneVisibility();
     setContentActionStatus("Content actions: ready", false);

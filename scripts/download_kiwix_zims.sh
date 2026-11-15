@@ -12,9 +12,6 @@ if [[ ! -f "$ENV_FILE" && -f "$REPO_ROOT/config/prepmaster.env" ]]; then
 fi
 URL_FILE="${PREPMASTER_ZIM_URL_FILE:-$REPO_ROOT/config/kiwix-zim-urls.txt}"
 CUSTOM_URL_FILE="${PREPMASTER_ZIM_CUSTOM_URL_FILE:-$REPO_ROOT/config/kiwix-zim-urls.custom.txt}"
-PROFILE="${PREPMASTER_ZIM_PROFILE:-essential}"
-WIKIPEDIA_OPTION="${PREPMASTER_WIKIPEDIA_OPTION:-top-mini}"
-ZIM_MODE="${PREPMASTER_ZIM_MODE:-full}"
 QUICK_TEST_FILE="$REPO_ROOT/config/kiwix-zim-urls.quick-test.txt"
 
 if [[ $EUID -ne 0 ]]; then
@@ -35,6 +32,10 @@ fi
 # shellcheck source=./load_env.sh
 source "$REPO_ROOT/scripts/load_env.sh"
 load_sopr_env "$ENV_FILE"
+
+PROFILE="${PREPMASTER_ZIM_PROFILE:-essential}"
+WIKIPEDIA_OPTION="${PREPMASTER_WIKIPEDIA_OPTION:-top-mini}"
+ZIM_MODE="${PREPMASTER_ZIM_MODE:-full}"
 
 DOWNLOAD_LIBRARY_DIR="${PREPMASTER_ZIM_INSTALL_DIR:-$KIWIX_LIBRARY_DIR}"
 DOWNLOAD_WIKIPEDIA_DIR="${PREPMASTER_WIKIPEDIA_INSTALL_DIR:-$DOWNLOAD_LIBRARY_DIR}"
@@ -71,46 +72,9 @@ install -d -m 0755 "$DOWNLOAD_WIKIPEDIA_DIR"
 install -d -m 0755 "$DOWNLOAD_LIBRARY_DIR/.sopr-download-tmp"
 install -d -m 0755 "$DOWNLOAD_WIKIPEDIA_DIR/.sopr-download-tmp"
 
-mapfile -t URLS < <(grep -v '^[[:space:]]*$' "$URL_FILE" | grep -v '^[[:space:]]*#')
-TOTAL_FILES="${#URLS[@]}"
-
-echo "PROGRESS_DOWNLOAD_TOTAL|$TOTAL_FILES"
-failed_urls=()
-
-for i in "${!URLS[@]}"; do
-  url="${URLS[$i]}"
-  # Route old manifests through the Debian mirror without changing saved selections.
-  case "$url" in
-    https://download.kiwix.org/zim/*|https://lb.download.kiwix.org/zim/*)
-      url="https://cdimage.debian.org/mirror/kiwix.org/zim/${url#*/zim/}"
-      ;;
-  esac
-  file_name="$(basename "$url")"
-  current=$((i + 1))
-  target_dir="$DOWNLOAD_LIBRARY_DIR"
-  if [[ "$url" == *"/zim/wikipedia/"* || "$file_name" == wikipedia_* ]]; then
-    target_dir="$DOWNLOAD_WIKIPEDIA_DIR"
-  fi
-
-  echo "PROGRESS_DOWNLOAD_FILE|$current|$TOTAL_FILES|$file_name"
-  echo "Downloading or refreshing: $url"
-  export TMPDIR="$target_dir/.sopr-download-tmp"
-  # Keep incomplete downloads away from the library until wget succeeds.
-  # Existing library files remain available while a refresh is in progress.
-  staging_dir="$target_dir/.sopr-download-tmp"
-  cd "$staging_dir"
-  if wget -N -c "$url"; then
-    if [[ -f "$file_name" ]]; then
-      mv -f -- "$file_name" "$target_dir/$file_name"
-    fi
-    echo "PROGRESS_DOWNLOAD_DONE|$current|$TOTAL_FILES|$file_name"
-  else
-    failed_urls+=("$url")
-    echo "WARNING: Download failed; continuing: $url" >&2
-  fi
-done
-
-echo "PROGRESS_DOWNLOAD_COMPLETE|$TOTAL_FILES"
+python3 "$REPO_ROOT/scripts/download_zim_batch.py" \
+  "$URL_FILE" "$KIWIX_LIBRARY_DIR" "$DOWNLOAD_LIBRARY_DIR" "$DOWNLOAD_WIKIPEDIA_DIR" \
+  "${PREPMASTER_ZIM_DOWNLOAD_JOBS:-3}"
 
 link_roots=("$DOWNLOAD_LIBRARY_DIR")
 if [[ "$DOWNLOAD_WIKIPEDIA_DIR" != "$DOWNLOAD_LIBRARY_DIR" ]]; then
@@ -135,7 +99,3 @@ if command -v kiwix-manage >/dev/null 2>&1; then
 fi
 
 echo "ZIM sync complete in $DOWNLOAD_LIBRARY_DIR"
-if (( ${#failed_urls[@]} )); then
-  echo "WARNING: ${#failed_urls[@]} ZIM download(s) failed. Retry the content download to try again:" >&2
-  printf '  %s\n' "${failed_urls[@]}" >&2
-fi
