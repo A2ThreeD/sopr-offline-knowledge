@@ -1,0 +1,609 @@
+{
+  "source": "https://www2.census.gov/geo/tiger/GENZ2025/shp/cb_2025_us_state_5m.zip",
+  "regions": [
+    {
+      "id": "pacific",
+      "name": "Pacific Region",
+      "states": [
+        {
+          "id": "alaska",
+          "name": "Alaska",
+          "bbox": [
+            -179.14734,
+            51.21986,
+            179.77847,
+            71.35256
+          ],
+          "estimated_bytes": 717225984
+        },
+        {
+          "id": "california",
+          "name": "California",
+          "bbox": [
+            -124.40959,
+            32.53416,
+            -114.13443,
+            42.00952
+          ],
+          "estimated_bytes": 1153433600
+        },
+        {
+          "id": "hawaii",
+          "name": "Hawaii",
+          "bbox": [
+            -160.24495,
+            18.91314,
+            -154.80804,
+            22.22964
+          ],
+          "estimated_bytes": 29360128
+        },
+        {
+          "id": "oregon",
+          "name": "Oregon",
+          "bbox": [
+            -124.55244,
+            41.99179,
+            -116.4635,
+            46.271
+          ],
+          "estimated_bytes": 397410304
+        },
+        {
+          "id": "washington",
+          "name": "Washington",
+          "bbox": [
+            -124.73317,
+            45.54354,
+            -116.91599,
+            49.00249
+          ],
+          "estimated_bytes": 488636416
+        }
+      ]
+    },
+    {
+      "id": "mountain",
+      "name": "Mountain Region",
+      "states": [
+        {
+          "id": "arizona",
+          "name": "Arizona",
+          "bbox": [
+            -114.81418,
+            31.33218,
+            -109.04522,
+            37.00426
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "colorado",
+          "name": "Colorado",
+          "bbox": [
+            -109.06025,
+            36.99243,
+            -102.04152,
+            41.00344
+          ],
+          "estimated_bytes": 471859200
+        },
+        {
+          "id": "idaho",
+          "name": "Idaho",
+          "bbox": [
+            -117.24303,
+            41.98806,
+            -111.04356,
+            49.00115
+          ],
+          "estimated_bytes": 230686720
+        },
+        {
+          "id": "montana",
+          "name": "Montana",
+          "bbox": [
+            -116.04989,
+            44.35799,
+            -104.03914,
+            49.00108
+          ],
+          "estimated_bytes": 283115520
+        },
+        {
+          "id": "nevada",
+          "name": "Nevada",
+          "bbox": [
+            -120.00575,
+            35.00186,
+            -114.03965,
+            42.00221
+          ],
+          "estimated_bytes": 209715200
+        },
+        {
+          "id": "new_mexico",
+          "name": "New Mexico",
+          "bbox": [
+            -109.05017,
+            31.3323,
+            -103.00196,
+            37.00023
+          ],
+          "estimated_bytes": 241172480
+        },
+        {
+          "id": "utah",
+          "name": "Utah",
+          "bbox": [
+            -114.05296,
+            36.99797,
+            -109.04106,
+            42.00157
+          ],
+          "estimated_bytes": 251658240
+        },
+        {
+          "id": "wyoming",
+          "name": "Wyoming",
+          "bbox": [
+            -111.05689,
+            40.99475,
+            -104.05216,
+            45.0059
+          ],
+          "estimated_bytes": 220200960
+        }
+      ]
+    },
+    {
+      "id": "west-south-central",
+      "name": "West South Central",
+      "states": [
+        {
+          "id": "arkansas",
+          "name": "Arkansas",
+          "bbox": [
+            -94.61792,
+            33.00429,
+            -89.64157,
+            36.4996
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "oklahoma",
+          "name": "Oklahoma",
+          "bbox": [
+            -103.00257,
+            33.61657,
+            -94.43121,
+            37.00221
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "louisiana",
+          "name": "Louisiana",
+          "bbox": [
+            -94.04315,
+            28.92971,
+            -88.81702,
+            33.01946
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "texas",
+          "name": "Texas",
+          "bbox": [
+            -106.64548,
+            25.83738,
+            -93.51641,
+            36.5007
+          ],
+          "estimated_bytes": 419430400
+        }
+      ]
+    },
+    {
+      "id": "east-south-central",
+      "name": "East South Central",
+      "states": [
+        {
+          "id": "alabama",
+          "name": "Alabama",
+          "bbox": [
+            -88.47323,
+            30.22113,
+            -84.88943,
+            35.00803
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "kentucky",
+          "name": "Kentucky",
+          "bbox": [
+            -89.57151,
+            36.49713,
+            -81.96497,
+            39.14746
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "mississippi",
+          "name": "Mississippi",
+          "bbox": [
+            -91.65501,
+            30.17394,
+            -88.09789,
+            34.99605
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "tennessee",
+          "name": "Tennessee",
+          "bbox": [
+            -90.30971,
+            34.98297,
+            -81.6469,
+            36.67812
+          ],
+          "estimated_bytes": 419430400
+        }
+      ]
+    },
+    {
+      "id": "south-atlantic",
+      "name": "South Atlantic",
+      "states": [
+        {
+          "id": "delaware",
+          "name": "Delaware",
+          "bbox": [
+            -75.78889,
+            38.45101,
+            -75.04894,
+            39.83919
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "florida",
+          "name": "Florida",
+          "bbox": [
+            -87.63494,
+            24.52115,
+            -80.03136,
+            31.00089
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "georgia",
+          "name": "Georgia",
+          "bbox": [
+            -85.60516,
+            30.35784,
+            -80.84055,
+            35.00066
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "maryland",
+          "name": "Maryland",
+          "bbox": [
+            -79.48765,
+            37.91172,
+            -75.04894,
+            39.72312
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "north_carolina",
+          "name": "North_Carolina",
+          "bbox": [
+            -84.32187,
+            33.84452,
+            -75.45866,
+            36.58812
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "south_carolina",
+          "name": "South_Carolina",
+          "bbox": [
+            -83.35324,
+            32.03388,
+            -78.54242,
+            35.2154
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "virginia",
+          "name": "Virginia",
+          "bbox": [
+            -83.67541,
+            36.54074,
+            -75.24247,
+            39.46601
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "west_virginia",
+          "name": "West_Virginia",
+          "bbox": [
+            -82.64474,
+            37.20148,
+            -77.71952,
+            40.6388
+          ],
+          "estimated_bytes": 419430400
+        }
+      ]
+    },
+    {
+      "id": "west-north-central",
+      "name": "West North Central",
+      "states": [
+        {
+          "id": "iowa",
+          "name": "Iowa",
+          "bbox": [
+            -96.6397,
+            40.37826,
+            -90.14006,
+            43.5012
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "kansas",
+          "name": "Kansas",
+          "bbox": [
+            -102.05174,
+            36.99308,
+            -94.58993,
+            40.00316
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "minnesota",
+          "name": "Minnesota",
+          "bbox": [
+            -97.23921,
+            43.49936,
+            -89.48923,
+            49.38436
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "missouri",
+          "name": "Missouri",
+          "bbox": [
+            -95.7747,
+            35.99568,
+            -89.09884,
+            40.61364
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "nebraska",
+          "name": "Nebraska",
+          "bbox": [
+            -104.05351,
+            40.0,
+            -95.30829,
+            43.00171
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "north_dakota",
+          "name": "North_Dakota",
+          "bbox": [
+            -104.0489,
+            45.93505,
+            -96.55451,
+            49.00056
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "south_dakota",
+          "name": "South_Dakota",
+          "bbox": [
+            -104.0577,
+            42.47964,
+            -96.43659,
+            45.94545
+          ],
+          "estimated_bytes": 419430400
+        }
+      ]
+    },
+    {
+      "id": "east-north-central",
+      "name": "East North Central",
+      "states": [
+        {
+          "id": "illinois",
+          "name": "Illinois",
+          "bbox": [
+            -91.51308,
+            36.9703,
+            -87.49649,
+            42.50848
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "indiana",
+          "name": "Indiana",
+          "bbox": [
+            -88.09789,
+            37.77174,
+            -84.78458,
+            41.76059
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "michigan",
+          "name": "Michigan",
+          "bbox": [
+            -90.41814,
+            41.69609,
+            -82.41296,
+            48.19098
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "ohio",
+          "name": "Ohio",
+          "bbox": [
+            -84.82016,
+            38.4032,
+            -80.51869,
+            41.97752
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "wisconsin",
+          "name": "Wisconsin",
+          "bbox": [
+            -92.88811,
+            42.49192,
+            -86.80541,
+            47.07667
+          ],
+          "estimated_bytes": 419430400
+        }
+      ]
+    },
+    {
+      "id": "mid-atlantic",
+      "name": "Mid-Atlantic",
+      "states": [
+        {
+          "id": "new_jersey",
+          "name": "New_Jersey",
+          "bbox": [
+            -75.55829,
+            38.92852,
+            -73.89398,
+            41.35742
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "new_york",
+          "name": "New_York",
+          "bbox": [
+            -79.76215,
+            40.4961,
+            -71.85636,
+            45.01585
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "pennsylvania",
+          "name": "Pennsylvania",
+          "bbox": [
+            -80.51989,
+            39.72006,
+            -74.68952,
+            42.26986
+          ],
+          "estimated_bytes": 419430400
+        }
+      ]
+    },
+    {
+      "id": "new-england",
+      "name": "New England",
+      "states": [
+        {
+          "id": "connecticut",
+          "name": "Connecticut",
+          "bbox": [
+            -73.72777,
+            40.98517,
+            -71.78699,
+            42.05059
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "maine",
+          "name": "Maine",
+          "bbox": [
+            -71.08392,
+            43.05982,
+            -66.94989,
+            47.45969
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "massachusetts",
+          "name": "Massachusetts",
+          "bbox": [
+            -73.50814,
+            41.23796,
+            -69.92826,
+            42.88659
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "new_hampshire",
+          "name": "New_Hampshire",
+          "bbox": [
+            -72.55725,
+            42.69699,
+            -70.7038,
+            45.30548
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "rhode_island",
+          "name": "Rhode_Island",
+          "bbox": [
+            -71.86277,
+            41.14634,
+            -71.12057,
+            42.0188
+          ],
+          "estimated_bytes": 419430400
+        },
+        {
+          "id": "vermont",
+          "name": "Vermont",
+          "bbox": [
+            -73.43774,
+            42.72685,
+            -71.46504,
+            45.01666
+          ],
+          "estimated_bytes": 419430400
+        }
+      ]
+    }
+  ]
+}

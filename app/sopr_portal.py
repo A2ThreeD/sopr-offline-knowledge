@@ -19,10 +19,12 @@ from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import NamedTuple
 from urllib.parse import urlparse
 from urllib import error, parse, request
 
 KIWIX_MIRROR_ROOT = "https://cdimage.debian.org/mirror/kiwix.org/zim/"
+MAP_EXTRACTION_OPERATIONS = {"build", "countries", "regions"}
 PROTOMAPS_DAILY_ROOT = "https://build.protomaps.com/"
 
 APPLY_LOG_MAX_BYTES = 5 * 1024 * 1024
@@ -340,6 +342,14 @@ def parse_git_lfs_pointer_size(text: str) -> int | None:
     if not match:
         return None
     return int(match.group(1))
+
+
+class MapBuild(NamedTuple):
+    filename: str
+    label: str
+    bounds: list[float]
+    max_zoom: int
+    geometry: dict | None = None
 
 
 class PortalState:
@@ -1053,6 +1063,11 @@ class PortalState:
             "active_size_bytes": active_details["size_bytes"],
             "available_files": valid_packages,
             "invalid_files": invalid_packages,
+            "state_regions": {
+                f"state-{state['id']}.pmtiles": {"id": region["id"], "name": region["name"], "title": state["name"]}
+                for region in self.regional_map_definitions()
+                for state in region["states"]
+            },
             "inventory": inventory,
             "flavor": env.get("PREPMASTER_MAP_STYLE_FLAVOR", "dark"),
             "language": env.get("PREPMASTER_MAP_LANGUAGE", "en"),
@@ -1919,7 +1934,7 @@ class PortalState:
         state = read_json(self.map_sync_state_file, {})
         if state.get("status") != "running":
             return
-        operation = "build" if state.get("operation") in {"build", "countries"} else "sync"
+        operation = "build" if state.get("operation") in MAP_EXTRACTION_OPERATIONS else "sync"
         self.save_map_sync_state(
             {
                 "status": "failed",
@@ -1946,7 +1961,7 @@ class PortalState:
             },
         )
         state["log_tail"] = self.read_map_sync_log_tail()
-        if state.get("operation") in {"build", "countries"} and state.get("status") == "running":
+        if state.get("operation") in MAP_EXTRACTION_OPERATIONS and state.get("status") == "running":
             extract_output = read_last_lines(
                 self.map_sync_log_file, start_offset=state.get("current_log_offset", 0)
             )
@@ -1994,7 +2009,7 @@ class PortalState:
         if type(max_zoom) is not int or not 0 <= max_zoom <= 15:
             raise ValueError("Max zoom must be a whole number from 0 to 15.")
 
-        return self.queue_map_builds([(f"custom-{slug}.pmtiles", slug, bounds, max_zoom)], "build")
+        return self.queue_map_builds([MapBuild(f"custom-{slug}.pmtiles", slug, bounds, max_zoom)], "build")
 
     @staticmethod
     def country_map_parts(country: dict) -> list[dict]:
@@ -2029,7 +2044,7 @@ class PortalState:
             raise ValueError("A selected country is missing from the map catalog.")
         installed = set(self.list_pmtiles_packages(valid_only=True))
         builds = [
-            (part["filename"], part["name"], part["bbox"], 15)
+            MapBuild(part["filename"], part["name"], part["bbox"], 15)
             for code in dict.fromkeys(ids)
             for part in self.country_map_parts(countries[code])
             if part["filename"] not in installed
@@ -2038,7 +2053,50 @@ class PortalState:
             raise ValueError("The selected country maps are already installed.")
         return self.queue_map_builds(builds, "countries")
 
-    def queue_map_builds(self, builds: list[tuple], operation: str) -> dict:
+    def regional_map_definitions(self) -> list[dict]:
+        return read_json(self.repo_root / "catalog" / "us-map-regions.json", {}).get("regions", [])
+
+    def regional_map_catalog(self) -> dict:
+        installed = set(self.list_pmtiles_packages(valid_only=True))
+        regions = []
+        for region in self.regional_map_definitions():
+            states = []
+            for state in region["states"]:
+                filename = f"state-{state['id']}.pmtiles"
+                states.append({**state, "filename": filename, "installed": filename in installed})
+            regions.append({**region, "states": states})
+        return {"regions": regions}
+
+    def start_regional_map_builds(self, payload: dict) -> dict:
+        ids = payload.get("region_ids") if isinstance(payload, dict) else None
+        if not isinstance(ids, list) or not ids or any(not isinstance(code, str) for code in ids):
+            raise ValueError("Select at least one U.S. region to install.")
+        regions = {region["id"]: region for region in self.regional_map_catalog()["regions"]}
+        if any(region_id not in regions for region_id in ids):
+            raise ValueError("A selected region is missing from the map catalog.")
+        states = {
+            state["id"]: state
+            for region_id in dict.fromkeys(ids)
+            for state in regions[region_id]["states"]
+            if not state["installed"]
+        }
+        if not states:
+            raise ValueError("The selected regional maps are already installed.")
+        boundary_file = self.repo_root / "catalog" / "us-state-boundaries.geojson"
+        try:
+            boundaries = {
+                feature["id"]: feature["geometry"]
+                for feature in json.loads(boundary_file.read_text())["features"]
+            }
+            builds = [
+                MapBuild(state["filename"], state["name"], state["bbox"], 15, boundaries[state_id])
+                for state_id, state in states.items()
+            ]
+        except (OSError, ValueError, KeyError) as exc:
+            raise RuntimeError("The bundled U.S. state boundaries could not be loaded.") from exc
+        return self.queue_map_builds(builds, "regions")
+
+    def queue_map_builds(self, builds: list[MapBuild], operation: str) -> dict:
         source = self.map_build_source()
         if source.startswith("https://"):
             parsed = urlparse(source)
@@ -2061,7 +2119,8 @@ class PortalState:
             root = self.preferred_map_install_dir()
             self.validate_install_destination("maps", str(root))
             canonical_root = self.maps_root()
-            for filename, _, _, _ in builds:
+            for build in builds:
+                filename = build.filename
                 if any(path.exists() or path.is_symlink() for path in (root / filename, canonical_root / filename)):
                     raise ValueError(f"A map named {filename} already exists.")
 
@@ -2070,15 +2129,15 @@ class PortalState:
             self.save_map_sync_state({
                 "status": "running", "operation": operation,
                 "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "finished_at": None, "cancel_requested": False, "current_file": builds[0][0], "current_label": builds[0][1],
+                "finished_at": None, "cancel_requested": False, "current_file": builds[0].filename, "current_label": builds[0].label,
                 "current_index": 1, "total_files": len(builds), "progress_percent": 0, "error": None,
-                "selected_files": [filename for filename, _, _, _ in builds],
+                "selected_files": [build.filename for build in builds],
                 "completed_files": [], "failed_files": [], "current_log_offset": 0,
             })
             self.map_sync_thread = threading.Thread(
                 target=self.run_map_builds,
                 args=(binary, source, builds, root, canonical_root),
-                kwargs={"check_coverage": operation == "countries" and bool(source)},
+                kwargs={"check_coverage": operation in {"countries", "regions"} and bool(source)},
                 daemon=True,
             )
             self.map_sync_thread.start()
@@ -2087,13 +2146,13 @@ class PortalState:
     def cancel_map_build(self) -> dict:
         with self.map_sync_lock:
             state = self.load_map_sync_state()
-            if state.get("status") != "running" or state.get("operation") not in {"build", "countries"}:
+            if state.get("status") != "running" or state.get("operation") not in MAP_EXTRACTION_OPERATIONS:
                 raise RuntimeError("There is no active map extraction to cancel.")
             self.map_build_cancel.set()
             return self.save_map_sync_state({"cancel_requested": True})
 
     def run_map_builds(
-        self, binary: str, source: str, builds: list[tuple], root: Path, canonical_root: Path,
+        self, binary: str, source: str, builds: list[MapBuild], root: Path, canonical_root: Path,
         *, check_coverage: bool = False,
     ) -> None:
         completed = []
@@ -2104,7 +2163,7 @@ class PortalState:
                 source = self.find_daily_protomaps_source()
             except RuntimeError as exc:
                 source_error = str(exc)
-                failed = [{"file": filename, "name": label, "error": source_error} for filename, label, _, _ in builds]
+                failed = [{"file": build.filename, "name": build.label, "error": source_error} for build in builds]
         coverage = None
         if check_coverage:
             try:
@@ -2112,9 +2171,9 @@ class PortalState:
                 coverage = json.loads(header)["bounds"]
             except (OSError, subprocess.SubprocessError, ValueError, KeyError):
                 source_error = "Unable to read coverage from the configured map source."
-                failed = [{"file": filename, "name": label, "error": source_error} for filename, label, _, _ in builds]
+                failed = [{"file": build.filename, "name": build.label, "error": source_error} for build in builds]
                 source = ""
-        for index, (filename, label, bounds, max_zoom) in enumerate(builds if source else [], 1):
+        for index, (filename, label, bounds, max_zoom, geometry) in enumerate(builds if source else [], 1):
             with self.map_sync_lock:
                 if self.map_build_cancel.is_set():
                     break
@@ -2130,7 +2189,9 @@ class PortalState:
             ):
                 failure = "The configured basemap does not cover the selected area."
             else:
-                failure = self.extract_map(binary, source, bounds, max_zoom, root / filename, canonical_root / filename)
+                failure = self.extract_map(
+                    binary, source, bounds, max_zoom, root / filename, canonical_root / filename, geometry=geometry
+                )
             if failure:
                 failed.append({"file": filename, "name": label, "error": failure})
                 with self.map_sync_log_file.open("a", encoding="utf-8") as log:
@@ -2177,7 +2238,7 @@ class PortalState:
 
     def extract_map(
         self, binary: str, source: str, bounds: list[float], max_zoom: int,
-        destination: Path, canonical: Path,
+        destination: Path, canonical: Path, *, geometry: dict | None = None,
     ) -> str | None:
         try:
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -2185,10 +2246,18 @@ class PortalState:
                 prefix=".sopr-map-build-", dir=destination.parent
             ) as staging:
                 output = Path(staging) / destination.name
-                bbox = ",".join(str(value) for value in bounds)
-                log.write(f"Extracting {destination.name} at zoom 0–{max_zoom} within {bbox}\n")
+                if geometry is None:
+                    bbox = ",".join(str(value) for value in bounds)
+                    area_arg = f"--bbox={bbox}"
+                    area_label = bbox
+                else:
+                    boundary = Path(staging) / "region.geojson"
+                    boundary.write_text(json.dumps(geometry))
+                    area_arg = f"--region={boundary}"
+                    area_label = "the state boundary"
+                log.write(f"Extracting {destination.name} at zoom 0–{max_zoom} within {area_label}\n")
                 log.flush()
-                command = [binary, "extract", source, str(output), f"--bbox={bbox}", f"--maxzoom={max_zoom}"]
+                command = [binary, "extract", source, str(output), area_arg, f"--maxzoom={max_zoom}"]
                 deadline = time.monotonic() + 7200
                 with subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT) as process:
                     while process.poll() is None:
@@ -4122,6 +4191,9 @@ class PortalHandler(BaseHTTPRequestHandler):
             except RuntimeError as exc:
                 self.send_json({"error": str(exc)}, status=502)
             return
+        if path == "/api/maps/regions":
+            self.send_json(self.portal_state.regional_map_catalog())
+            return
         if path == "/api/maps/countries":
             self.send_json(self.portal_state.country_map_catalog())
             return
@@ -4229,12 +4301,14 @@ class PortalHandler(BaseHTTPRequestHandler):
             self.send_json(state)
             return
 
-        if self.path in {"/api/maps/build", "/api/maps/countries", "/api/maps/build/cancel"}:
+        if self.path in {"/api/maps/build", "/api/maps/countries", "/api/maps/regions", "/api/maps/build/cancel"}:
             try:
                 if self.path == "/api/maps/build":
                     state = self.portal_state.start_map_build(payload)
                 elif self.path == "/api/maps/countries":
                     state = self.portal_state.start_country_map_builds(payload)
+                elif self.path == "/api/maps/regions":
+                    state = self.portal_state.start_regional_map_builds(payload)
                 else:
                     state = self.portal_state.cancel_map_build()
             except ValueError as exc:

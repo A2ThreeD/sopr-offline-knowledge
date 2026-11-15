@@ -573,24 +573,6 @@
       return response.json();
     }
 
-    async function loadMapCatalog() {
-      const controller = new AbortController();
-      const timeoutHandle = window.setTimeout(() => controller.abort(), 4000);
-      let response;
-      try {
-        response = await fetch("/api/maps/catalog", {
-          cache: "no-store",
-          signal: controller.signal
-        });
-      } finally {
-        window.clearTimeout(timeoutHandle);
-      }
-      if (!response.ok) {
-        throw new Error("Unable to load map catalog");
-      }
-      return response.json();
-    }
-
     async function loadConfig() {
       try {
         const response = await fetch("/maps/config.json", { cache: "no-store" });
@@ -646,20 +628,17 @@
       return versionPart ? `${regionName} (${versionPart})` : regionName;
     }
 
-    function buildInstalledMapEntries(state, catalog) {
-      const catalogItems = Array.isArray(catalog?.items) ? catalog.items : [];
-      const byName = new Map(catalogItems.map((item) => [item.name, item]));
+    function buildInstalledMapEntries(state) {
       return (state.available_files || []).map((filename) => {
-        const item = byName.get(filename);
+        const legacyState = /^([a-z_]+)_\d{4}-\d{2}\.pmtiles$/.exec(filename)?.[1];
+        const region = state.state_regions?.[filename] || state.state_regions?.[`state-${legacyState}.pmtiles`];
         const custom = filename.startsWith("custom-");
         const country = filename.startsWith("country-");
         return {
           filename,
-          title: item?.title || friendlyMapName(filename),
-          regionSlug: custom ? "custom" : country ? "countries" : item?.region_slug || "other",
-          regionName: custom ? "Custom Maps" : country ? "Country Maps" : item?.region_name || "Other Installed Maps",
-          description: item?.description || "",
-          version: item?.version || ""
+          title: legacyState ? friendlyMapName(filename) : region?.title || friendlyMapName(filename),
+          regionSlug: custom ? "custom" : country ? "countries" : region?.id || "other",
+          regionName: custom ? "Custom Maps" : country ? "Country Maps" : region?.name || "Other Installed Maps"
         };
       });
     }
@@ -889,16 +868,9 @@
           centerMapOnActiveArchive(pmtilesSource, config);
         });
 
-        Promise.allSettled([loadMapState(), loadMapCatalog()])
-          .then((results) => {
-            const stateResult = results[0];
-            const catalogResult = results[1];
-            if (stateResult.status !== "fulfilled") {
-              throw stateResult.reason || new Error("Unable to load map package state");
-            }
-            const state = stateResult.value;
-            const catalog = catalogResult.status === "fulfilled" ? catalogResult.value : { items: [] };
-            installedMapEntries = buildInstalledMapEntries(state, catalog);
+        loadMapState()
+          .then((state) => {
+            installedMapEntries = buildInstalledMapEntries(state);
             populateMapControls(state, config);
             if (!state.active_valid) {
               const problem = state.active_error || "Configured archive is missing or invalid.";
