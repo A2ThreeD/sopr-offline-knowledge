@@ -807,13 +807,14 @@
       overflow-x: hidden;
     }
 
-    .panel-group[data-panel-group="content"] .grid {
-      grid-template-columns: minmax(0, 0.96fr) minmax(0, 1.04fr);
-      align-items: stretch;
+    .panel-group[data-panel-group="content"] > .grid {
+      grid-template-columns: minmax(0, 1fr);
     }
 
-    .panel-group[data-panel-group="content"] .grid.single-pane {
-      grid-template-columns: minmax(0, 1fr);
+    #add-more-content-card {
+      margin-top: 1.25rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
     }
 
     .panel-group[data-panel-group="content"] .card {
@@ -1365,6 +1366,9 @@
             </div>
           </div>
           <div class="system-services" id="system-services-list">Checking application services...</div>
+          <div class="actions">
+            <a class="button" href="/api/diagnostics/logs" download>Export Troubleshooting Logs</a>
+          </div>
           <div class="power-controls-box">
             <strong class="power-controls-label">Power Controls</strong>
             <div class="actions">
@@ -1456,62 +1460,11 @@
     </section>
 
     <section class="panel-group" data-panel-group="content">
-      <div class="grid single-pane">
+      <div class="grid">
         <section class="card">
           <h2>Installed Content</h2>
-          <p class="muted">
-            Review what is already on the device, remove files you no longer want, and rebuild the Kiwix library from what is on disk.
-          </p>
-          <div class="content-set-box">
-            <div class="content-set-top">
-              <strong>Installed Content Set</strong>
-              <button class="button" data-icon="＋" id="toggle-add-content-button" type="button">Add More Content</button>
-            </div>
-            <div class="content-set-tile" id="content-set-tile">Loading...</div>
-            <p class="substatus" id="content-set-status">Loading installed content set.</p>
-          </div>
-          <div class="content-storage">
-            <p class="content-storage-summary" id="content-storage-summary">Checking disk usage.</p>
-            <div class="content-storage-bar" aria-hidden="true">
-              <div class="content-storage-segment other" id="content-storage-other"></div>
-              <div class="content-storage-segment content" id="content-storage-library-internal"></div>
-              <div class="content-storage-segment content-external" id="content-storage-library-external"></div>
-              <div class="content-storage-segment free" id="content-storage-free"></div>
-            </div>
-            <div class="content-storage-legend">
-              <div class="content-storage-chip">
-                <strong><span class="content-storage-swatch other" aria-hidden="true"></span>Other Used</strong>
-                <span id="content-storage-other-label">-</span>
-              </div>
-              <div class="content-storage-chip">
-                <strong><span class="content-storage-swatch content" aria-hidden="true"></span>Internal Content</strong>
-                <span id="content-storage-library-internal-label">-</span>
-              </div>
-              <div class="content-storage-chip">
-                <strong><span class="content-storage-swatch content-external" aria-hidden="true"></span>External Content</strong>
-                <span id="content-storage-library-external-label">-</span>
-              </div>
-              <div class="content-storage-chip">
-                <strong><span class="content-storage-swatch free" aria-hidden="true"></span>Free</strong>
-                <span id="content-storage-free-label">-</span>
-              </div>
-            </div>
-            <div class="content-storage-warning" id="content-storage-warning"></div>
-          </div>
-          <div class="status-cluster" id="content-status" aria-live="polite"></div>
-          <p class="substatus" id="content-library-note">Loading content library state.</p>
-          <div class="field">
-            <label>Installed ZIM Files</label>
-            <div id="content-local-list" class="log-panel muted">Checking local ZIM files...</div>
-          </div>
-          <div class="actions">
-            <button class="button" data-icon="↻" id="refresh-installed-zims-button" type="button">Refresh Installed ZIMs</button>
-            <button class="button" data-icon="☑" id="select-all-local-zims-button" type="button">Select All</button>
-            <button class="button" data-icon="☐" id="clear-local-zims-button" type="button">Clear All</button>
-            <button class="button" data-icon="✖" id="remove-local-zims-button" type="button">Remove Selected ZIMs</button>
-            <button class="button" data-icon="⌘" id="rebuild-library-button" type="button">Rebuild Kiwix Library</button>
-          </div>
-          <p class="status hidden" id="content-action-status">Content actions: ready</p>
+          <p class="muted" id="content-setup-note" role="status">Checking installation status…</p>
+          <p class="status hidden" id="content-action-status" role="status">Content actions: ready</p>
           <div class="progress-shell hidden" id="content-progress-shell">
             <div class="progress-top">
               <span class="progress-label" id="progress-label">Waiting for action</span>
@@ -1530,52 +1483,111 @@
             <strong>Recent Log</strong>
             <pre id="apply-log">No active download log.</pre>
           </div>
-        </section>
-        <section class="card hidden" id="add-more-content-card">
-          <h2>Add More Content</h2>
-          <p class="muted">
-            Browse the online Kiwix catalog here and add more ZIM files to this device whenever you want.
-          </p>
-          <div class="field">
-            <label for="content-zim-mirror">ZIM Download Mirror</label>
-            <select id="content-zim-mirror"></select>
-          </div>
-          <p class="muted" id="zim-catalog-source">Catalog source: online check on demand</p>
-          <div class="actions">
-            <button class="button" data-icon="☁" id="refresh-zim-catalog-button" type="button">Check Online Catalog</button>
-            <button class="button" data-icon="↓" id="refresh-content-button" type="button">Download Missing Content</button>
-          </div>
-          <div class="field">
-            <label for="content-install-target">Install New Content To</label>
-            <select id="content-install-target"></select>
-          </div>
-          <div class="field-grid">
-            <div class="field">
-              <label for="zim-category-filter">Category</label>
-              <select id="zim-category-filter">
-                <option value="all">All Categories</option>
-              </select>
+          <div id="content-library-details" class="hidden">
+            <p class="muted">
+              Review what is already on the device, remove files you no longer want, and rebuild the Kiwix library from what is on disk.
+            </p>
+            <div class="content-set-box">
+              <div class="content-set-top">
+                <strong>Installed Content Set</strong>
+                <button class="button" data-icon="＋" id="toggle-add-content-button" type="button">Add More Content</button>
+              </div>
+              <div class="content-set-tile" id="content-set-tile">Loading...</div>
+              <p class="substatus" id="content-set-status">Loading installed content set.</p>
             </div>
-            <div class="field">
-              <label for="zim-catalog-filter">Filter Catalog</label>
-              <input id="zim-catalog-filter" type="text" placeholder="Filter by name">
+            <div class="content-storage">
+              <p class="content-storage-summary" id="content-storage-summary">Checking disk usage.</p>
+              <div class="content-storage-bar" aria-hidden="true">
+                <div class="content-storage-segment other" id="content-storage-other"></div>
+                <div class="content-storage-segment content" id="content-storage-library-internal"></div>
+                <div class="content-storage-segment content-external" id="content-storage-library-external"></div>
+                <div class="content-storage-segment free" id="content-storage-free"></div>
+              </div>
+              <div class="content-storage-legend">
+                <div class="content-storage-chip">
+                  <strong><span class="content-storage-swatch other" aria-hidden="true"></span>Other Used</strong>
+                  <span id="content-storage-other-label">-</span>
+                </div>
+                <div class="content-storage-chip">
+                  <strong><span class="content-storage-swatch content" aria-hidden="true"></span>Internal Content</strong>
+                  <span id="content-storage-library-internal-label">-</span>
+                </div>
+                <div class="content-storage-chip">
+                  <strong><span class="content-storage-swatch content-external" aria-hidden="true"></span>External Content</strong>
+                  <span id="content-storage-library-external-label">-</span>
+                </div>
+                <div class="content-storage-chip">
+                  <strong><span class="content-storage-swatch free" aria-hidden="true"></span>Free</strong>
+                  <span id="content-storage-free-label">-</span>
+                </div>
+              </div>
+              <div class="content-storage-warning" id="content-storage-warning"></div>
             </div>
+            <div class="actions">
+              <button class="button" id="update-content-button" type="button">Update Content</button>
+              <label><input id="automatic-content-updates" type="checkbox" disabled> Check for content updates weekly</label>
+            </div>
+            <p class="substatus" id="automatic-content-update-note">Updates download newer editions of installed ZIMs. Older files stay on disk until you remove them.</p>
+            <div class="status-cluster" id="content-status" aria-live="polite"></div>
+            <p class="substatus" id="content-library-note">Loading content library state.</p>
+            <div class="field">
+              <label>Installed ZIM Files</label>
+              <div id="content-local-list" class="log-panel muted">Checking local ZIM files...</div>
+            </div>
+            <div class="actions">
+              <button class="button" data-icon="↻" id="refresh-installed-zims-button" type="button">Refresh Installed ZIMs</button>
+              <button class="button" data-icon="☑" id="select-all-local-zims-button" type="button">Select All</button>
+              <button class="button" data-icon="☐" id="clear-local-zims-button" type="button">Clear All</button>
+              <button class="button" data-icon="✖" id="remove-local-zims-button" type="button">Remove Selected ZIMs</button>
+              <button class="button" data-icon="⌘" id="rebuild-library-button" type="button">Rebuild Kiwix Library</button>
+            </div>
+            <section class="hidden" id="add-more-content-card">
+              <h2>Add More Content</h2>
+              <p class="muted">
+                Browse the online Kiwix catalog here and add more ZIM files to this device whenever you want.
+              </p>
+              <div class="field">
+                <label for="content-zim-mirror">ZIM Download Mirror</label>
+                <select id="content-zim-mirror"></select>
+              </div>
+              <p class="muted" id="zim-catalog-source">Catalog source: online check on demand</p>
+              <div class="actions">
+                <button class="button" data-icon="☁" id="refresh-zim-catalog-button" type="button">Check Online Catalog</button>
+                <button class="button" data-icon="↓" id="refresh-content-button" type="button">Download Missing Content</button>
+              </div>
+              <div class="field">
+                <label for="content-install-target">Install New Content To</label>
+                <select id="content-install-target"></select>
+              </div>
+              <div class="field-grid">
+                <div class="field">
+                  <label for="zim-category-filter">Category</label>
+                  <select id="zim-category-filter">
+                    <option value="all">All Categories</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="zim-catalog-filter">Filter Catalog</label>
+                  <input id="zim-catalog-filter" type="text" placeholder="Filter by name">
+                </div>
+              </div>
+              <div class="field">
+                <label>Kiwix Download Catalog</label>
+                <div id="zim-catalog-list" class="log-panel muted">Online catalog is idle. Click Check Online Catalog when you want to query Kiwix.</div>
+              </div>
+              <div class="actions">
+                <button class="button" data-icon="↓" id="download-selected-zims-button" type="button">DOWNLOAD SELECTED</button>
+                <button class="button" data-icon="☑" id="select-all-zims-button" type="button">SELECT ALL</button>
+                <button class="button" data-icon="☐" id="clear-all-zims-button" type="button">CLEAR ALL</button>
+              </div>
+              <div class="pager">
+                <button class="button" data-icon="←" id="zim-prev-page-button" type="button">Previous 50</button>
+                <p class="substatus" id="zim-page-status">Page 1</p>
+                <button class="button" data-icon="→" id="zim-next-page-button" type="button">Next 50</button>
+              </div>
+              <p class="substatus" id="zim-catalog-note">Choose any ZIM files you want to add, then download them into the local library.</p>
+            </section>
           </div>
-          <div class="field">
-            <label>Kiwix Download Catalog</label>
-            <div id="zim-catalog-list" class="log-panel muted">Online catalog is idle. Click Check Online Catalog when you want to query Kiwix.</div>
-          </div>
-          <div class="actions">
-            <button class="button" data-icon="↓" id="download-selected-zims-button" type="button">DOWNLOAD SELECTED</button>
-            <button class="button" data-icon="☑" id="select-all-zims-button" type="button">SELECT ALL</button>
-            <button class="button" data-icon="☐" id="clear-all-zims-button" type="button">CLEAR ALL</button>
-          </div>
-          <div class="pager">
-            <button class="button" data-icon="←" id="zim-prev-page-button" type="button">Previous 50</button>
-            <p class="substatus" id="zim-page-status">Page 1</p>
-            <button class="button" data-icon="→" id="zim-next-page-button" type="button">Next 50</button>
-          </div>
-          <p class="substatus" id="zim-catalog-note">Choose any ZIM files you want to add, then download them into the local library.</p>
         </section>
       </div>
     </section>
@@ -1776,6 +1788,9 @@
     let applyPollHandle = null;
     let systemPollHandle = null;
     let currentContent = null;
+    let contentPanelLoading = false;
+    let contentNeedsRefresh = true;
+    let latestContentApply = null;
     let currentContentCatalog = null;
     let contentCatalogPollHandle = null;
     let installedZimSort = { by: "name", dir: "asc" };
@@ -1821,43 +1836,47 @@
     }
 
     function renderApplyState(apply) {
-      const label = apply.action ? ` (${apply.action})` : "";
-      const step = apply.step ? ` | ${apply.step}` : "";
+      const running = apply.status === "running";
+      const failed = apply.status === "failed";
+      const setupRunning = running && apply.action === "full";
+      const setupNote = document.getElementById("content-setup-note");
+      setupNote.textContent = setupRunning
+        ? "Installation is still in progress. Keep SOPR powered on. The content list and disk usage will appear automatically when setup finishes."
+        : failed && apply.action === "full"
+          ? "Installation stopped before it finished. See the error and content log below."
+          : "";
+      setupNote.classList.toggle("hidden", !setupNote.textContent);
+      document.getElementById("content-library-details").classList.toggle("hidden", setupRunning);
+      const failures = apply.download_failed || 0;
       setContentActionStatus(
-        `Content actions: ${apply.status}${label}${step}`,
-        apply.status && apply.status !== "idle"
+        running ? (setupRunning ? "Installing SOPR" : "Working on your content")
+          : failed ? (apply.error || "The last operation failed.")
+          : failures ? `Finished with ${failures} failed download${failures === 1 ? "" : "s"}.`
+          : apply.status === "succeeded" ? "Finished." : "",
+        running || failed || apply.status === "succeeded"
       );
-      document.getElementById("progress-label").textContent =
-        apply.step || "Waiting for action";
-      document.getElementById("progress-value").textContent =
-        `${apply.progress_percent || 0}%`;
-      document.getElementById("progress-fill").style.width =
-        `${apply.progress_percent || 0}%`;
-      let currentFileText = "Current file: none";
-      let summaryText = "No active operation.";
-      if (apply.current_file) {
-        currentFileText = `Current file: ${apply.current_file}`;
-        if (apply.download_current && apply.download_total) {
-          currentFileText += ` (${apply.download_current}/${apply.download_total})`;
-          summaryText = `Processing item ${apply.download_current} of ${apply.download_total}.`;
-        }
-      }
-      document.getElementById("current-file-status").textContent = currentFileText;
-      if (apply.status === "running" && !apply.current_file && apply.step) {
-        summaryText = apply.step;
-      } else if (apply.status === "succeeded") {
-        summaryText = "Last operation completed successfully.";
-      } else if (apply.status === "failed") {
-        summaryText = apply.error || "Last operation failed.";
-      }
-      document.getElementById("content-summary-status").textContent = summaryText;
+      document.getElementById("progress-label").textContent = apply.step || "Preparing";
+      const percent = Number(apply.progress_percent) || 0;
+      document.getElementById("progress-value").textContent = `${percent}%`;
+      document.getElementById("progress-fill").style.width = `${percent}%`;
+      const files = (apply.active_downloads || []).map(({ filename, downloaded_bytes, total_bytes }) => {
+        if (!total_bytes && !downloaded_bytes) return filename;
+        const downloaded = formatBytes(downloaded_bytes);
+        return total_bytes ? `${filename} (${downloaded} of ${formatBytes(total_bytes)})` : `${filename} (${downloaded} received)`;
+      });
+      if (running && !files.length && apply.current_file && apply.downloads_active) files.push(apply.current_file);
+      document.getElementById("current-file-status").textContent = files.length ? `Downloading: ${files.join(" · ")}` : "";
+      document.getElementById("content-summary-status").textContent = running && apply.downloads_active && apply.download_total
+        ? `${apply.download_current || 0} of ${apply.download_total} files processed${failures ? ` · ${failures} failed` : ""}`
+        : "";
       document.getElementById("apply-log").textContent =
         apply.log_tail && apply.log_tail.length
           ? apply.log_tail.join("\n")
           : "No active download log.";
       setContentProgressVisibility(apply.status === "running" || apply.status === "failed");
 
-      const running = apply.status === "running";
+      document.getElementById("update-content-button").disabled = running || !currentContent?.automatic_updates;
+      document.getElementById("automatic-content-updates").disabled = running || !currentContent?.automatic_updates;
       document.getElementById("refresh-installed-zims-button").disabled = running;
       document.getElementById("remove-local-zims-button").disabled = running;
       document.getElementById("select-all-local-zims-button").disabled = running;
@@ -1906,11 +1925,9 @@
     }
 
     function updateContentPaneVisibility() {
-      const panel = document.querySelector('.panel-group[data-panel-group="content"] .grid');
       const card = document.getElementById("add-more-content-card");
       const button = document.getElementById("toggle-add-content-button");
       card.classList.toggle("hidden", !addMoreContentVisible);
-      panel.classList.toggle("single-pane", !addMoreContentVisible);
       button.textContent = addMoreContentVisible ? "Hide Add More Content" : "Add More Content";
     }
 
@@ -3293,46 +3310,81 @@
       }
     }
 
-    async function loadContentPanelData() {
+    async function loadContentPanelData(force = true) {
+      if (contentPanelLoading) return;
+      contentPanelLoading = true;
       try {
-        const [stateResult, contentResult, applyResult] = await Promise.all([
-          fetchJsonWithTimeout("/api/state"),
-          fetchJsonWithTimeout("/api/content", {}, 3000),
-          fetchJsonWithTimeout("/api/apply")
-        ]);
-        currentState = stateResult.payload;
-        currentContent = contentResult.payload;
-        const apply = applyResult.payload;
-        renderContentState(currentContent);
-        renderContentStorage(currentState, currentContent);
-        renderApplyState(apply);
-        if (currentContentCatalog) {
-          renderZimCatalog(currentContentCatalog);
-        } else {
-          document.getElementById("zim-catalog-source").textContent = "Catalog source: online check on demand";
-          document.getElementById("zim-catalog-list").textContent = "Online catalog is idle. Click Check Online Catalog when you want to query Kiwix.";
+        const { response, payload: apply } = await fetchJsonWithTimeout("/api/apply");
+        if (!response.ok) throw new Error("Unable to check installation status.");
+        if (latestContentApply?.status !== apply.status || latestContentApply?.finished_at !== apply.finished_at) {
+          contentNeedsRefresh = true;
         }
+        latestContentApply = apply;
+        renderApplyState(apply);
+        if (apply.status === "running") return;
+        if (!force && !contentNeedsRefresh) return;
+        const [state, content] = await Promise.allSettled([
+          fetchJsonWithTimeout("/api/state"),
+          fetchJsonWithTimeout("/api/content")
+        ]);
+        if (state.status === "fulfilled" && state.value.response.ok) {
+          currentState = state.value.payload;
+        } else {
+          currentState = null;
+        }
+        if (content.status === "fulfilled" && content.value.response.ok) {
+          currentContent = content.value.payload;
+          renderContentState(currentContent);
+          if (currentContentCatalog) renderZimCatalog(currentContentCatalog);
+        } else if (!currentContent) {
+          document.getElementById("content-local-list").textContent = "Still checking local ZIM files. SOPR will retry automatically.";
+          document.getElementById("content-set-tile").textContent = "Checking…";
+          document.getElementById("content-set-status").textContent = "Waiting for the installed content list.";
+        }
+        contentNeedsRefresh = !currentState || content.status !== "fulfilled" || !content.value.response.ok;
+        renderContentStorage(currentState, currentContent);
+        renderApplyState(latestContentApply);
       } catch (error) {
-        document.getElementById("content-local-list").textContent = "Unable to load local ZIM files.";
-        setContentActionStatus("Content actions: unavailable", true);
-        document.getElementById("content-set-tile").textContent = "Unavailable";
-        document.getElementById("content-set-status").textContent = "Installed content set unavailable.";
-        setContentProgressVisibility(false);
-        renderContentStorage(null, null);
+        const note = document.getElementById("content-setup-note");
+        note.textContent = latestContentApply?.status === "running" && latestContentApply.action === "full"
+          ? "Installation was in progress at the last check. Keep SOPR powered on while it reconnects."
+          : "Waiting for SOPR to report installation status. This page will retry automatically.";
+        note.classList.remove("hidden");
+      } finally {
+        contentPanelLoading = false;
       }
     }
 
-    async function loadApplyStateOnly() {
+    function renderAutomaticContentUpdates(settings) {
+      const checkbox = document.getElementById("automatic-content-updates");
+      checkbox.checked = Boolean(settings?.enabled);
+      checkbox.disabled = !settings;
+      const next = settings?.enabled && settings.next_at ? new Date(settings.next_at * 1000) : null;
+      document.getElementById("automatic-content-update-note").textContent =
+        "Updates download newer editions of installed ZIMs. Older files stay on disk until you remove them."
+        + (next ? ` Next check: ${next.toLocaleString()}.` : "");
+    }
+
+    async function saveAutomaticContentUpdates(event) {
+      const checkbox = event.currentTarget;
+      checkbox.disabled = true;
       try {
-        const { payload } = await fetchJsonWithTimeout("/api/apply");
-        renderApplyState(payload);
+        const { response, payload } = await fetchJsonWithTimeout("/api/content/automatic-updates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled: checkbox.checked })
+        });
+        if (!response.ok) throw new Error(payload.error || "Could not save the update schedule.");
+        currentContent.automatic_updates = payload;
       } catch (error) {
-        setContentActionStatus("Content actions: unavailable", true);
-        setContentProgressVisibility(false);
+        document.getElementById("content-library-note").textContent = error.message;
+      } finally {
+        renderAutomaticContentUpdates(currentContent?.automatic_updates);
       }
     }
 
     function renderContentState(content, note = "") {
+      renderAutomaticContentUpdates(content.automatic_updates);
       pendingCustomSelection = new Set(content.custom_selected_paths || []);
       const mirrorOptions = content.zim_mirrors || [];
       const mirrorSelect = document.getElementById("content-zim-mirror");
@@ -3737,10 +3789,9 @@
         systemPollHandle = null;
       }
 
-      const contentRunning = document.getElementById("content-action-status").textContent.includes("running");
-      if (contentRunning) {
+      if (currentPanel === "content") {
         if (applyPollHandle === null) {
-          applyPollHandle = window.setInterval(loadApplyStateOnly, 5000);
+          applyPollHandle = window.setInterval(() => loadContentPanelData(false), 5000);
         }
       } else if (applyPollHandle !== null) {
         window.clearInterval(applyPollHandle);
@@ -3879,12 +3930,14 @@
       const building = state.operation === "build";
       const regions = state.operation === "regions";
       const extracting = building || countries || regions;
-      const step = state.current_file ? ` | ${extracting ? state.current_label || state.current_file : state.current_file}` : "";
       const overallProgress = extracting && state.status === "running" && Number.isFinite(state.current_percent)
         ? Math.floor(((state.current_index - 1) * 100 + state.current_percent) / state.total_files)
         : state.progress_percent || 0;
       document.getElementById("maps-sync-status").textContent =
-        `Map ${building ? "build" : extracting ? "install" : "sync"}: ${state.status}${step}`;
+        state.status === "running" ? "Map job in progress"
+          : state.status === "succeeded" ? "Map job finished"
+          : state.status === "failed" ? "Map job stopped"
+          : state.status === "cancelled" ? "Map job cancelled" : "No active map job";
       document.getElementById("maps-progress-label").textContent =
         state.status === "running" ? (regions ? "Installing U.S. regions" : countries ? "Installing countries" : building ? "Building custom map" : "Syncing map packages") : "Waiting for a map job";
       document.getElementById("maps-progress-value").textContent =
@@ -3897,7 +3950,9 @@
         mapCurrentFileText = `Current map: ${state.current_label || state.current_file}`;
         if (state.current_index && state.total_files) {
           mapCurrentFileText += ` (${state.current_index}/${state.total_files})`;
-          mapSummaryText = extracting ? "Extracting and verifying the selected area." : `Syncing ${state.current_index} of ${state.total_files} selected maps.`;
+          const processed = Math.max(0, state.current_index - 1);
+          mapSummaryText = `${processed} of ${state.total_files} maps processed.`;
+          if (extracting && Number.isFinite(state.current_percent)) mapSummaryText += ` Current extract: ${state.current_percent}%.`;
         }
       }
       if (state.status === "succeeded") {
@@ -4451,6 +4506,8 @@
       submitAccessPointAction(action);
     });
     document.getElementById("toggle-ap-clients-button").addEventListener("click", toggleAccessPointClients);
+    document.getElementById("update-content-button").addEventListener("click", () => triggerApplyAction("update-content"));
+    document.getElementById("automatic-content-updates").addEventListener("change", saveAutomaticContentUpdates);
     document.getElementById("refresh-installed-zims-button").addEventListener("click", refreshInstalledZims);
     document.getElementById("content-local-list").addEventListener("click", (event) => {
       const button = event.target.closest(".zim-installed-header-button");
@@ -4609,10 +4666,12 @@
     });
     document.getElementById("install-country-maps").addEventListener("click", installSelectedCountries);
     document.getElementById("cancel-map-build").addEventListener("click", cancelMapExtraction);
+    window.addEventListener("hashchange", () => setActivePanel(initialPanelFromLocation()));
     setActivePanel(initialPanelFromLocation());
     updateContentPaneVisibility();
     setContentActionStatus("Content actions: ready", false);
     setContentProgressVisibility(false);
   </script>
+  <script defer src="/job-status.js"></script>
 </body>
 </html>

@@ -24,11 +24,6 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-if [[ ! -f "$URL_FILE" ]]; then
-  echo "Missing URL manifest: $URL_FILE"
-  exit 1
-fi
-
 # shellcheck source=./load_env.sh
 source "$REPO_ROOT/scripts/load_env.sh"
 load_sopr_env "$ENV_FILE"
@@ -40,7 +35,9 @@ ZIM_MODE="${PREPMASTER_ZIM_MODE:-full}"
 DOWNLOAD_LIBRARY_DIR="${PREPMASTER_ZIM_INSTALL_DIR:-$KIWIX_LIBRARY_DIR}"
 DOWNLOAD_WIKIPEDIA_DIR="${PREPMASTER_WIKIPEDIA_INSTALL_DIR:-$DOWNLOAD_LIBRARY_DIR}"
 
-if [[ "$ZIM_MODE" == "quick-test" ]]; then
+if [[ -n "${SOPR_JOB_ZIM_MANIFEST:-}" ]]; then
+  URL_FILE="$SOPR_JOB_ZIM_MANIFEST"
+elif [[ "$ZIM_MODE" == "quick-test" ]]; then
   if [[ ! -f "$QUICK_TEST_FILE" ]]; then
     echo "Missing quick-test manifest: $QUICK_TEST_FILE"
     exit 1

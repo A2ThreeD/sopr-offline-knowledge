@@ -7,6 +7,8 @@ import argparse
 import fcntl
 import json
 import os
+import re
+import tempfile
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -17,33 +19,53 @@ MIRROR_OPTIONS = Path(__file__).resolve().parents[1] / "catalog" / "zim-mirrors.
 MIRROR_ROOTS = ("https://download.kiwix.org/zim/", *(item["url"] for item in json.loads(MIRROR_OPTIONS.read_text())["mirrors"]))
 
 
+def response_details(log_path: Path) -> tuple[int, str]:
+    log = log_path.read_text(errors="replace")
+    responses = re.split(r"(?m)^ *HTTP/[^ ]+ ", log)
+    if len(responses) == 1:
+        return 0, ""
+    last = responses[-1]
+    status = last.partition("\n")[0].strip()
+    size = re.search(r"(?im)^ *Content-Range: bytes [^/]+/(\d+)", last)
+    if not size and status.startswith("200"):
+        size = re.search(r"(?im)^ *Content-Length: (\d+)", last)
+    return int(size[1]) if size else 0, status
+
+
 def download(url: str, target: Path, index: int, total: int) -> bool:
     print(f"PROGRESS_DOWNLOAD_FILE|{index}|{total}|{target.name}", flush=True)
-    print(f"Downloading or refreshing: {url}", flush=True)
+    print(f"Downloading {target.name}", flush=True)
     staging_dir = target.parent / ".sopr-download-tmp"
     staged_file = staging_dir / target.name
     try:
-        with subprocess.Popen(
-            ["wget", "--no-verbose", "-N", "-c", "--", url],
-            cwd=staging_dir,
-            env={**os.environ, "TMPDIR": str(staging_dir)},
-        ) as process:
-            while True:
-                try:
-                    return_code = process.wait(timeout=5)
-                    break
-                except subprocess.TimeoutExpired:
+        with tempfile.NamedTemporaryFile(dir=staging_dir) as response_log:
+            response_path = Path(response_log.name)
+            with subprocess.Popen(
+                ["wget", "--server-response", "--no-verbose", "-N", "-c", "--", url],
+                stdout=response_log, stderr=subprocess.STDOUT,
+                cwd=staging_dir,
+                env={**os.environ, "TMPDIR": str(staging_dir)},
+            ) as process:
+                while True:
                     try:
-                        downloaded_bytes = staged_file.stat().st_size
-                    except FileNotFoundError:
-                        downloaded_bytes = 0
-                    print(f"PROGRESS_DOWNLOAD_BYTES|{downloaded_bytes}|{target.name}", flush=True)
+                        return_code = process.wait(timeout=5)
+                        break
+                    except subprocess.TimeoutExpired:
+                        try:
+                            downloaded_bytes = staged_file.stat().st_size
+                        except FileNotFoundError:
+                            downloaded_bytes = 0
+                        total_bytes, _ = response_details(response_path)
+                        print(f"PROGRESS_DOWNLOAD_BYTES|{downloaded_bytes}|{total_bytes}|{target.name}", flush=True)
+            _, status = response_details(response_path)
         if return_code == 0 and staged_file.is_file():
             staged_file.replace(target)
+            print(f"Ready: {target.name}", flush=True)
             return True
+        reason = status if status and not status.startswith(("200", "206")) else f"wget exited with code {return_code}"
+        print(f"Failed: {target.name} ({reason})", flush=True)
     except OSError as exc:
         print(f"{target.name}: {exc}", flush=True)
-    print(f"WARNING: Download failed; continuing: {url}", flush=True)
     return False
 
 
@@ -95,15 +117,14 @@ def main() -> None:
                 target, url = pending[task]
                 succeeded = task.result()
                 if not succeeded:
-                    failures.append(url)
+                    failures.append(target.name)
                     print(f"PROGRESS_DOWNLOAD_FAILED|{target.name}", flush=True)
                 print(f"PROGRESS_DOWNLOAD_FINISHED|{finished}|{total}|{target.name}", flush=True)
         print(f"PROGRESS_DOWNLOAD_COMPLETE|{total}", flush=True)
 
     if failures:
         print(f"WARNING: {len(failures)} ZIM download(s) failed. Retry the content download to try again:", flush=True)
-        for url in failures:
-            print(f"  {url}", flush=True)
+        print("Failed files: " + ", ".join(failures), flush=True)
 
 
 if __name__ == "__main__":

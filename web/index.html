@@ -1669,7 +1669,6 @@
 
     let currentStep = 0;
     let applyPollHandle = null;
-    let backgroundApplyPollHandle = null;
     let applyRunning = false;
     let applyNeedsAttention = false;
     let canLeaveToHomeDuringApply = false;
@@ -1692,7 +1691,6 @@
     let activeMessageText = "";
     let activeMessageIsError = false;
     let driveNoticeText = "";
-    let applyNoticeText = "";
 
     function formatSize(sizeMb) {
       if (!sizeMb) return "Size not listed";
@@ -1730,7 +1728,7 @@
     }
 
     function renderTopMessage() {
-      const text = activeMessageText || applyNoticeText || driveNoticeText;
+      const text = activeMessageText || driveNoticeText;
       const isError = activeMessageText ? activeMessageIsError : false;
       if (!text) {
         message.textContent = "";
@@ -1746,27 +1744,6 @@
     function showMessage(text, isError = false) {
       activeMessageText = text;
       activeMessageIsError = isError;
-      renderTopMessage();
-    }
-
-    function updateApplyNotice(applyState) {
-      if (!applyState || applyState.status !== "running" || !applyState.downloads_active) {
-        applyNoticeText = "";
-        renderTopMessage();
-        return;
-      }
-
-      if (applyState.step === "Installing United States offline maps") {
-        applyNoticeText = "Offline map downloads are running in the background. You can keep using SOPR while they finish.";
-      } else {
-        const activeFiles = (applyState.active_downloads || []).map((item) => item.filename);
-        const progress = applyState.download_total
-          ? ` (${applyState.download_current}/${applyState.download_total})`
-          : "";
-        applyNoticeText = activeFiles.length
-          ? `Downloading ${activeFiles.join(", ")}${progress}.`
-          : `Content downloads are running in the background${progress}.`;
-      }
       renderTopMessage();
     }
 
@@ -2177,7 +2154,7 @@
     function renderZimProgress(state) {
       const panel = document.getElementById("apply-zim-progress");
       panel.hidden = state.status !== "running" ||
-        !["Downloading selected Kiwix content", "Downloading selected extra Kiwix content"].includes(state.step);
+        !state.downloads_active;
       if (panel.hidden) return;
 
       const total = state.download_total;
@@ -2192,18 +2169,21 @@
       document.getElementById("apply-zim-summary").textContent = total
         ? `${processed} of ${total} ZIM files processed${failures}`
         : total === 0 ? "No ZIM files queued." : "Preparing ZIM downloads…";
-      const files = (state.active_downloads || []).map(({ filename, downloaded_bytes }) => {
+      const files = (state.active_downloads || []).map(({ filename, downloaded_bytes, total_bytes }) => {
         const row = document.createElement("li");
-        row.textContent = downloaded_bytes ? `${filename} · ${formatBytes(downloaded_bytes)} downloaded` : `${filename} · Starting…`;
+        row.textContent = total_bytes ? `${filename} · ${formatBytes(downloaded_bytes)} of ${formatBytes(total_bytes)}`
+          : downloaded_bytes ? `${filename} · ${formatBytes(downloaded_bytes)} downloaded` : `${filename} · Starting…`;
         return row;
       });
       document.getElementById("apply-zim-files").replaceChildren(...files);
     }
 
     function renderApplyState(state) {
-      const step = state.step ? ` | ${state.step}` : "";
-      const error = state.error ? ` | ${state.error}` : "";
-      applyStatusText.textContent = `Apply status: ${state.status}${step}${error}`;
+      const failedDownloads = state.download_failed || 0;
+      applyStatusText.textContent = state.status === "running" ? (state.step || "Preparing installation…")
+        : state.status === "failed" ? (state.error || "Installation stopped. Check the log below.")
+        : state.status === "succeeded" ? (failedDownloads ? `Setup finished with ${failedDownloads} failed download${failedDownloads === 1 ? "" : "s"}.` : "Setup finished.")
+        : "Waiting to start.";
       renderZimProgress(state);
       applyLogText.textContent = state.log_tail && state.log_tail.length
         ? state.log_tail.join("\n")
@@ -2215,7 +2195,6 @@
       canLeaveToHomeDuringApply = Boolean(state.can_leave_to_home);
       applyConfigButton.disabled = running;
       applyStatusText.classList.toggle("running", running);
-      updateApplyNotice(state);
       renderMode({ setup_complete: latestSetupComplete });
 
       if (running) {
@@ -2448,7 +2427,9 @@
         const payload = await response.json();
         renderApplyState(payload);
         if (payload.status === "succeeded") {
-          showMessage("Configuration applied successfully. You can go to Home when you are ready.");
+          showMessage(payload.download_failed
+            ? "Setup finished with some missing downloads. Retry them in Settings → Content → Add More Content."
+            : "Setup finished. You can go to Home when you are ready.");
           renderMode({ setup_complete: latestSetupComplete || true });
         } else if (payload.status === "failed") {
           showMessage(payload.error || "Configuration apply failed. Review the log excerpt below.", true);
@@ -2456,21 +2437,6 @@
         }
       } catch (error) {
         showMessage(error.message, true);
-      }
-    }
-
-    async function refreshBackgroundApplyState() {
-      try {
-        const response = await fetch(`${apiBase}/apply`, { cache: "no-store" });
-        if (!response.ok) {
-          return;
-        }
-        const payload = await response.json();
-        if (!applyRunning) {
-          updateApplyNotice(payload);
-        }
-      } catch (error) {
-        // Keep the normal page flow quiet if the apply-status poll fails.
       }
     }
 
@@ -2572,9 +2538,6 @@
         renderMode(state);
         renderStorageEstimate();
         updateWizardStep();
-        if (backgroundApplyPollHandle === null) {
-          backgroundApplyPollHandle = window.setInterval(refreshBackgroundApplyState, 15000);
-        }
       } catch (error) {
         renderSelectionCards();
         renderContentTiers();
@@ -2630,5 +2593,6 @@
 
     initialize();
   </script>
+  <script defer src="/job-status.js"></script>
 </body>
 </html>

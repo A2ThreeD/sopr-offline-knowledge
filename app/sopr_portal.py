@@ -30,6 +30,12 @@ PROTOMAPS_DAILY_ROOT = "https://build.protomaps.com/"
 APPLY_LOG_MAX_BYTES = 5 * 1024 * 1024
 APPLY_LOG_KEEP_BYTES = 4 * 1024 * 1024
 APPLY_PROGRESS_SCAN_BYTES = 1024 * 1024
+CONTENT_UPDATE_INTERVAL = 7 * 86400
+ZIM_DOWNLOAD_STEPS = {
+    "Downloading selected Kiwix content",
+    "Downloading selected extra Kiwix content",
+    "Downloading available ZIM updates",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -364,6 +370,7 @@ class PortalState:
         self.state_file = self.data_dir / "portal-state.json"
         self.apply_state_file = self.data_dir / "apply-state.json"
         self.apply_log_file = self.data_dir / "apply.log"
+        self.content_update_file = self.data_dir / "content-update.json"
         self.map_sync_state_file = self.data_dir / "map-sync-state.json"
         self.map_sync_log_file = self.data_dir / "map-sync.log"
         self.maps_catalog_cache_file = self.data_dir / "maps-catalog-cache.json"
@@ -1289,7 +1296,7 @@ class PortalState:
         except json.JSONDecodeError:
             return None
 
-    def build_kiwix_catalog_payload(self) -> dict:
+    def build_kiwix_catalog_payload(self, *, cache: bool = True) -> dict:
         root_url = self.zim_catalog_root().rstrip("/") + "/"
         installed = {item["name"]: item for item in self.list_installed_zims()}
         custom_selection = self.read_custom_zim_selection()
@@ -1350,11 +1357,12 @@ class PortalState:
             "error": None,
             "refreshing": False,
         }
-        temporary_cache = self.content_catalog_cache_file.with_suffix(".tmp")
-        temporary_cache.write_text(
-            json.dumps({"fetched_at": time.time(), "payload": payload}, indent=2) + "\n"
-        )
-        temporary_cache.replace(self.content_catalog_cache_file)
+        if cache:
+            temporary_cache = self.content_catalog_cache_file.with_suffix(".tmp")
+            temporary_cache.write_text(
+                json.dumps({"fetched_at": time.time(), "payload": payload}, indent=2) + "\n"
+            )
+            temporary_cache.replace(self.content_catalog_cache_file)
         return payload
 
     def refresh_kiwix_catalog_in_background(self) -> None:
@@ -1468,6 +1476,7 @@ class PortalState:
             "library_root": str(self.kiwix_library_dir()),
             "catalog_root": self.zim_catalog_root(),
             "zim_mirrors": self.zim_mirrors(),
+            "automatic_updates": self.content_update_settings(),
             "custom_manifest": str(self.custom_zim_manifest_path()),
             "custom_selection_file": str(self.custom_zim_selection_path()),
             "custom_selected_paths": sorted(selected_paths),
@@ -1928,7 +1937,10 @@ class PortalState:
         return self.maps_status()
 
     def read_map_sync_log_tail(self, lines: int = 30) -> list[str]:
-        return read_last_lines(self.map_sync_log_file, lines)
+        return [
+            line for line in read_last_lines(self.map_sync_log_file, lines * 8)
+            if line.strip() and not line.lstrip().startswith("fetching chunks")
+        ][-lines:]
 
     def recover_interrupted_map_sync(self) -> None:
         state = read_json(self.map_sync_state_file, {})
@@ -3302,6 +3314,79 @@ class PortalState:
             "clients": stations,
         }
 
+    def content_update_settings(self) -> dict:
+        return read_json(self.content_update_file, {"enabled": False, "next_at": None, "last_attempt_at": None})
+
+    def write_content_update_settings(self, settings: dict) -> dict:
+        pending = self.content_update_file.with_suffix(".tmp")
+        pending.write_text(json.dumps(settings, indent=2) + "\n")
+        pending.replace(self.content_update_file)
+        return settings
+
+    def set_automatic_content_updates(self, enabled: object) -> dict:
+        if type(enabled) is not bool:
+            raise ValueError("Choose whether automatic updates are enabled.")
+        with self.apply_lock:
+            settings = self.content_update_settings()
+            if settings["enabled"] != enabled:
+                settings.update(enabled=enabled, next_at=time.time() + CONTENT_UPDATE_INTERVAL if enabled else None)
+                self.write_content_update_settings(settings)
+            return settings
+
+    def run_content_update_schedule(self) -> None:
+        while True:
+            settings = self.content_update_settings()
+            if (settings.get("enabled") and (settings.get("next_at") or 0) <= time.time()
+                    and read_json(self.state_file, {}).get("setup_complete")):
+                try:
+                    self.start_apply("update-content", scheduled=True)
+                except (OSError, RuntimeError) as exc:
+                    print(f"Automatic content update deferred: {exc}", flush=True)
+            time.sleep(60)
+
+    def prepare_content_update_manifest(self) -> Path:
+        version_pattern = re.compile(r"(.+)_([0-9]{4}-(?:0[1-9]|1[0-2]))\.zim")
+        installed_versions = {}
+        for archive in self.list_installed_zims():
+            match = version_pattern.fullmatch(archive["name"])
+            if match:
+                edition, version = match.groups()
+                installed_versions[edition] = max(version, installed_versions.get(edition, ""))
+        selected = {}
+        if installed_versions:
+            catalog = self.build_kiwix_catalog_payload(cache=False)
+            for item in catalog["items"]:
+                match = version_pattern.fullmatch(item["name"])
+                if not match:
+                    continue
+                edition, version = match.groups()
+                if edition in installed_versions and version > installed_versions[edition]:
+                    if edition not in selected or version > selected[edition][0]:
+                        selected[edition] = (version, catalog["source"]["root_url"] + parse.quote(item["path"], safe="/%"))
+        manifest = self.data_dir / "content-update-urls.txt"
+        manifest.write_text("".join(url + "\n" for _, url in selected.values()))
+        return manifest
+
+    def troubleshooting_report(self) -> str:
+        apply = self.load_apply_state()
+        maps = self.load_map_sync_state()
+        sections = [
+            "SOPR Troubleshooting Logs",
+            time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+            f"Content job: {apply.get('status')}",
+            f"Map job: {maps.get('status')}",
+            "",
+            "Content and setup",
+            *self.read_log_tail(300),
+            "",
+            "Map downloads",
+            *self.read_map_sync_log_tail(300),
+        ]
+        # Strip credentials and query strings from URLs that appear in logs.
+        report = re.sub(r"(https?://)([^/\s]+@)", r"\1[redacted]@", "\n".join(sections))
+        report = re.sub(r"(https?://[^\s?]+)\?[^\s]*", r"\1?[redacted]", report)
+        return report + "\n"
+
     def load_apply_state(self) -> dict:
         state = read_json(
             self.apply_state_file,
@@ -3322,10 +3407,7 @@ class PortalState:
         step = str(state.get("step") or "")
         state["downloads_active"] = bool(
             state.get("status") == "running"
-            and step in {
-                "Downloading selected Kiwix content",
-                "Downloading selected extra Kiwix content",
-            }
+            and step in ZIM_DOWNLOAD_STEPS
         )
         state["can_leave_to_home"] = bool(
             state.get("status") == "succeeded"
@@ -3340,7 +3422,10 @@ class PortalState:
         return self.load_apply_state()
 
     def read_log_tail(self, lines: int = 30) -> list[str]:
-        return read_last_lines(self.apply_log_file, lines)
+        return [
+            line for line in read_last_lines(self.apply_log_file, lines * 6)
+            if line.strip() and not line.startswith("PROGRESS_DOWNLOAD_")
+        ][-lines:]
 
     def launch_apply(
         self,
@@ -3384,8 +3469,8 @@ class PortalState:
         self.apply_thread.start()
         return self.load_apply_state()
 
-    def start_apply(self, action: str = "full") -> dict:
-        if action not in {"full", "refresh-content", "rebuild-library", "download-extra-content"}:
+    def start_apply(self, action: str = "full", *, scheduled: bool = False) -> dict:
+        if action not in {"full", "refresh-content", "rebuild-library", "download-extra-content", "update-content"}:
             raise ValueError("Invalid apply action")
 
         with self.apply_lock, self.map_sync_lock:
@@ -3395,6 +3480,14 @@ class PortalState:
             if action == "full" and self.load_map_sync_state().get("status") == "running":
                 raise RuntimeError("Wait for the current map job to finish before applying setup")
 
+            if action == "update-content":
+                settings = self.content_update_settings()
+                if scheduled and (not settings.get("enabled") or (settings.get("next_at") or 0) > time.time()):
+                    return state
+                now = time.time()
+                settings.update(last_attempt_at=now, next_at=now + CONTENT_UPDATE_INTERVAL if settings["enabled"] else None)
+                self.write_content_update_settings(settings)
+
             return self.launch_apply(action, clear_log=True)
 
     def recover_interrupted_apply(self) -> None:
@@ -3403,7 +3496,7 @@ class PortalState:
             return
 
         action = state.get("action", "full")
-        if action not in {"full", "refresh-content", "rebuild-library", "download-extra-content"}:
+        if action not in {"full", "refresh-content", "rebuild-library", "download-extra-content", "update-content"}:
             return
 
         self.launch_apply(
@@ -3414,6 +3507,13 @@ class PortalState:
         )
 
     def commands_for_action(self, action: str) -> list[tuple[str, list[str]]]:
+        if action == "update-content":
+            return [
+                ("Checking for newer ZIM editions", ["__prepare_content_update__"]),
+                ("Downloading available ZIM updates", [str(self.repo_root / "scripts" / "download_kiwix_zims.sh")]),
+                ("Restarting Kiwix service", ["systemctl", "restart", "sopr-kiwix.service"]),
+            ]
+
         if action == "download-extra-content":
             return [
                 (
@@ -3500,7 +3600,7 @@ class PortalState:
         )
         if action == "download-extra-content":
             env["PREPMASTER_ZIM_MODE"] = "custom"
-            env["PREPMASTER_ZIM_CUSTOM_URL_FILE"] = str(self.extra_zim_manifest_path())
+            env["SOPR_JOB_ZIM_MANIFEST"] = str(self.extra_zim_manifest_path())
 
         exit_code = 0
         error_message = None
@@ -3516,6 +3616,18 @@ class PortalState:
                 )
                 log_handle.write(f"\n== {step} ==\n")
                 log_handle.flush()
+                if command == ["__prepare_content_update__"]:
+                    try:
+                        manifest = self.prepare_content_update_manifest()
+                    except (RuntimeError, OSError) as exc:
+                        exit_code, error_message = 1, str(exc)
+                        break
+                    if not self.read_manifest_urls(manifest):
+                        log_handle.write("No newer editions found for the installed ZIM files.\n")
+                        break
+                    env["PREPMASTER_ZIM_MODE"] = "custom"
+                    env["SOPR_JOB_ZIM_MANIFEST"] = str(manifest)
+                    continue
                 return_code = self.run_logged_command(
                     command,
                     env=env,
@@ -3607,7 +3719,7 @@ class PortalState:
         done_pattern = re.compile(r"^PROGRESS_DOWNLOAD_DONE\|(\d+)\|(\d+)\|(.+)$")
         finished_pattern = re.compile(r"^PROGRESS_DOWNLOAD_FINISHED\|(\d+)\|(\d+)\|(.*)$")
         complete_pattern = re.compile(r"^PROGRESS_DOWNLOAD_COMPLETE\|(\d+)$")
-        bytes_pattern = re.compile(r"^PROGRESS_DOWNLOAD_BYTES\|(\d+)\|(.+)$")
+        bytes_pattern = re.compile(r"^PROGRESS_DOWNLOAD_BYTES\|(\d+)\|(?:(\d+)\|)?(.+)$")
         failed_prefix = "PROGRESS_DOWNLOAD_FAILED|"
 
         download_total = None
@@ -3615,7 +3727,7 @@ class PortalState:
         current_index = None
         last_done_index = None
         parallel_finished = None
-        active_downloads: dict[str, int] = {}
+        active_downloads: dict[str, tuple[int, int]] = {}
 
         for line in recent_log_text.splitlines():
             total_match = total_pattern.match(line)
@@ -3630,12 +3742,12 @@ class PortalState:
                 current_index = int(file_match.group(1))
                 download_total = int(file_match.group(2))
                 current_file = file_match.group(3)
-                active_downloads[current_file] = 0
+                active_downloads[current_file] = (0, 0)
                 continue
 
             bytes_match = bytes_pattern.match(line)
             if bytes_match:
-                active_downloads[bytes_match.group(2)] = int(bytes_match.group(1))
+                active_downloads[bytes_match.group(3)] = (int(bytes_match.group(1)), int(bytes_match.group(2) or 0))
                 continue
 
             if line.startswith(failed_prefix):
@@ -3672,13 +3784,13 @@ class PortalState:
 
         if (
             status == "running"
-            and step in {"Downloading selected Kiwix content", "Downloading selected extra Kiwix content"}
+            and step in ZIM_DOWNLOAD_STEPS
             and total_steps > 0
             and download_total
         ):
             progress["active_downloads"] = [
-                {"filename": filename, "downloaded_bytes": downloaded_bytes}
-                for filename, downloaded_bytes in active_downloads.items()
+                {"filename": filename, "downloaded_bytes": downloaded_bytes, "total_bytes": total_bytes}
+                for filename, (downloaded_bytes, total_bytes) in active_downloads.items()
             ]
             completed_within_download = parallel_finished if parallel_finished is not None else last_done_index or 0
             if parallel_finished is None and current_index and current_file and completed_within_download < current_index:
@@ -4170,6 +4282,16 @@ class PortalHandler(BaseHTTPRequestHandler):
         if path == "/api/system/access-point/clients":
             self.send_json(self.portal_state.access_point_clients())
             return
+        if path == "/api/diagnostics/logs":
+            report = self.portal_state.troubleshooting_report().encode("utf-8")
+            self.send_response(200)
+            self.send_common_headers()
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Disposition", 'attachment; filename="sopr-troubleshooting.txt"')
+            self.send_header("Content-Length", str(len(report)))
+            self.end_headers()
+            self.wfile.write(report)
+            return
         if path == "/api/content":
             self.send_json(self.portal_state.content_status())
             return
@@ -4239,6 +4361,15 @@ class PortalHandler(BaseHTTPRequestHandler):
                 self.send_json({"error": str(exc)}, status=409)
                 return
             self.send_json(state, status=202)
+            return
+
+        if self.path == "/api/content/automatic-updates":
+            try:
+                settings = self.portal_state.set_automatic_content_updates(payload.get("enabled"))
+            except ValueError as exc:
+                self.send_json({"error": str(exc)}, status=400)
+                return
+            self.send_json(settings)
             return
 
         if self.path == "/api/content/settings":
@@ -4499,6 +4630,7 @@ def main() -> None:
     handler = PortalHandler
     handler.portal_state = PortalState(Path(args.repo_root), Path(args.data_dir))
     server = ThreadingHTTPServer((args.host, args.port), handler)
+    threading.Thread(target=handler.portal_state.run_content_update_schedule, daemon=True).start()
     print(f"SOPR portal API listening on {args.host}:{args.port}", flush=True)
     server.serve_forever()
 

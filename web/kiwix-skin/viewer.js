@@ -1,3 +1,15 @@
+/*
+ * SOPR Offline Knowledge
+ * Copyright (c) 2026 Aaron Morris / A2ThreeD.
+ * SOPR reader integration for Kiwix.
+ */
+
+if (window.top === window) {
+  const soprJobStatusScript = document.createElement("script");
+  soprJobStatusScript.src = "/job-status.js";
+  document.head.append(soprJobStatusScript);
+}
+
 // Terminology
 //
 // user url: identifier of the page that has to be displayed in the viewer
